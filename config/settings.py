@@ -29,6 +29,10 @@ PROC_FUSED_DIR = os.path.join(PROCESSED_DIR, "fused")
 OUT_CLUSTERS_DIR = os.path.join(OUTPUT_DIR, "clusters")
 OUT_RISK_MAPS_DIR = os.path.join(OUTPUT_DIR, "risk_maps")
 OUT_FIGURES_DIR = os.path.join(OUTPUT_DIR, "figures")
+OUT_LOG_DIR = os.path.join(OUTPUT_DIR, "logs")
+
+# Pipeline state: written by run_full_pipeline, read by sub-clustering etc.
+PIPELINE_STATE_FILE = os.path.join(OUTPUT_DIR, "pipeline_state.json")
 
 # =============================================================================
 # REGION OF INTEREST — Jakarta
@@ -58,6 +62,13 @@ EXPORT_CRS = "EPSG:4326"
 INSAR_ORBIT_DIRECTION = "DESCENDING"
 INSAR_POLARIZATION = "VV"
 
+# Coherence masking: pixels below this threshold are discarded as unreliable
+COHERENCE_THRESHOLD = 0.3
+
+# Calibration: minimum valid pixels required for a cluster to qualify as the
+# stable reference (avoids selecting a tiny cluster with low std by chance)
+CALIBRATION_MIN_CLUSTER_PIXELS = 100
+
 # Velocity thresholds (mm/year) for rough categorization
 SUBSIDENCE_THRESHOLDS = {
     "stable": (-2, 2),
@@ -85,15 +96,33 @@ DEFAULT_METHOD = "kmeans"
 
 # K-Means / GMM
 K_RANGE = range(4, 16)  # test cluster counts from 4 to 15
+DEFAULT_N_CLUSTERS = 8   # fallback when k-search is disabled
 RANDOM_STATE = 42
+KMEANS_BATCH_SIZE = 10_000  # MiniBatchKMeans batch size
 
 # HDBSCAN
 HDBSCAN_MIN_CLUSTER_SIZE = 500
 HDBSCAN_MIN_SAMPLES = 50
+HDBSCAN_MAX_FIT_SAMPLES = 50_000   # cap for HDBSCAN fitting (O(n²) algorithm)
+HDBSCAN_PCA_COMPONENTS = 20        # PCA dims before HDBSCAN distance computation
+
+# HDBSCAN safety net — if results are unusable, fall back to K-Means
+HDBSCAN_MAX_NOISE_FRACTION = 0.50  # >50% noise triggers fallback
+HDBSCAN_MIN_USABLE_CLUSTERS = 2    # <2 clusters triggers fallback
+HDBSCAN_FALLBACK_K = 4             # K-Means k when HDBSCAN fails
+
+# Evaluation: silhouette scoring is O(n²), so subsample for large datasets
+SILHOUETTE_MAX_SAMPLES = 50_000
 
 # Sampling: for large rasters, cluster on a random sample then predict full image
 MAX_CLUSTERING_SAMPLES = 500_000
 SAMPLE_FRACTION = 0.1  # fraction of valid pixels to sample
+
+# =============================================================================
+# SUB-CLUSTERING PARAMETERS
+# =============================================================================
+SUB_K_RANGE = [2, 3, 4]          # k values to test during sub-cluster search
+SUBCLUSTER_MAX_SAMPLES = 200_000  # subsample cap for sub-clustering
 
 # =============================================================================
 # VISUALIZATION
@@ -115,7 +144,7 @@ def ensure_dirs():
     dirs = [
         RAW_EMBEDDINGS_DIR, RAW_INSAR_DIR, RAW_ANCILLARY_DIR,
         PROC_EMBEDDINGS_DIR, PROC_INSAR_DIR, PROC_FUSED_DIR,
-        OUT_CLUSTERS_DIR, OUT_RISK_MAPS_DIR, OUT_FIGURES_DIR,
+        OUT_CLUSTERS_DIR, OUT_RISK_MAPS_DIR, OUT_FIGURES_DIR, OUT_LOG_DIR,
     ]
     for d in dirs:
         os.makedirs(d, exist_ok=True)

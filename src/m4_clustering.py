@@ -20,6 +20,9 @@ from src.utils.geo_utils import features_to_raster, save_raster
 from config.settings import (
     K_RANGE, RANDOM_STATE, OUT_CLUSTERS_DIR,
     HDBSCAN_MIN_CLUSTER_SIZE, HDBSCAN_MIN_SAMPLES,
+    HDBSCAN_MAX_FIT_SAMPLES, HDBSCAN_PCA_COMPONENTS,
+    HDBSCAN_MAX_NOISE_FRACTION, HDBSCAN_MIN_USABLE_CLUSTERS, HDBSCAN_FALLBACK_K,
+    KMEANS_BATCH_SIZE, SILHOUETTE_MAX_SAMPLES, DEFAULT_N_CLUSTERS,
 )
 
 
@@ -46,7 +49,7 @@ def find_optimal_k(features, k_range=None, method="kmeans"):
     silhouettes = []
     db_scores = []
 
-    max_sil = 30_000
+    max_sil = SILHOUETTE_MAX_SAMPLES
     if len(features) > max_sil:
         sil_idx = np.random.RandomState(RANDOM_STATE).choice(
             len(features), max_sil, replace=False
@@ -61,7 +64,7 @@ def find_optimal_k(features, k_range=None, method="kmeans"):
         if method == "kmeans":
             model = MiniBatchKMeans(
                 n_clusters=k, random_state=RANDOM_STATE,
-                batch_size=10_000, n_init=3, max_iter=300,
+                batch_size=KMEANS_BATCH_SIZE, n_init=3, max_iter=300,
             )
             model.fit(features)
             inertias.append(model.inertia_)
@@ -113,7 +116,7 @@ def run_kmeans(features, n_clusters, full_features=None):
     model = MiniBatchKMeans(
         n_clusters=n_clusters,
         random_state=RANDOM_STATE,
-        batch_size=10_000,
+        batch_size=KMEANS_BATCH_SIZE,
         n_init=5,
         max_iter=500,
     )
@@ -147,38 +150,142 @@ def run_gmm(features, n_components, full_features=None):
     return labels, probabilities, model
 
 
-def run_hdbscan(features, min_cluster_size=None, min_samples=None):
-    """Run HDBSCAN on embedding features."""
-    import hdbscan
+def run_hdbscan(features, full_features=None, min_cluster_size=None,
+                min_samples=None, max_fit_samples=None, n_pca=None):
+    """
+    Run HDBSCAN on embedding features with safety constraints.
+
+    HDBSCAN is O(n²) in distance computation, so it cannot run on
+    millions of pixels directly. This function:
+      1. Reduces dimensions via PCA (fitted on the training subsample)
+      2. Further subsamples to `max_fit_samples` for HDBSCAN fitting
+      3. Uses `approximate_predict` to label all remaining pixels
+
+    Parameters
+    ----------
+    features : np.ndarray
+        Training subsample, shape (n_samples, 64). Already subsampled
+        by M3 (typically 500K), but may be further reduced here.
+    full_features : np.ndarray, optional
+        All valid pixels, shape (n_all, 64). If provided,
+        approximate_predict labels every pixel after fitting.
+    min_cluster_size : int
+    min_samples : int
+    max_fit_samples : int
+        Cap on pixels for HDBSCAN fitting. Default 50,000.
+    n_pca : int
+        Number of PCA components for dimensionality reduction.
+
+    Returns
+    -------
+    labels : np.ndarray
+        Cluster labels for full_features (or features if not provided).
+        Noise points are labeled -1.
+    model : hdbscan.HDBSCAN
+    quality : dict
+        Quality assessment with keys: n_clusters, noise_fraction, usable.
+        If usable is False, caller should fall back to another method.
+    """
+    import hdbscan as hdb
 
     if min_cluster_size is None:
         min_cluster_size = HDBSCAN_MIN_CLUSTER_SIZE
     if min_samples is None:
         min_samples = HDBSCAN_MIN_SAMPLES
+    if max_fit_samples is None:
+        max_fit_samples = HDBSCAN_MAX_FIT_SAMPLES
+    if n_pca is None:
+        n_pca = HDBSCAN_PCA_COMPONENTS
+
+    predict_on_full = full_features is not None
 
     print(f"Running HDBSCAN on embeddings only...")
+    print(f"  Training samples:    {len(features):,}")
+    if predict_on_full:
+        print(f"  Full prediction set: {len(full_features):,}")
+    print(f"  Dimensions:          {features.shape[1]}")
 
-    if features.shape[1] > 20:
-        print("  Reducing to 20 PCA components...")
-        pca = PCA(n_components=20, random_state=RANDOM_STATE)
+    # ── Step 1: PCA dimensionality reduction ─────────────────────────
+    pca = None
+    if features.shape[1] > n_pca:
+        print(f"  PCA: {features.shape[1]} → {n_pca} components...")
+        pca = PCA(n_components=n_pca, random_state=RANDOM_STATE)
         features_reduced = pca.fit_transform(features)
         explained = pca.explained_variance_ratio_.sum()
         print(f"  PCA explains {explained:.1%} of variance")
     else:
         features_reduced = features
 
-    model = hdbscan.HDBSCAN(
+    # ── Step 2: Subsample for HDBSCAN fitting ────────────────────────
+    if len(features_reduced) > max_fit_samples:
+        rng = np.random.RandomState(RANDOM_STATE)
+        fit_idx = rng.choice(len(features_reduced), max_fit_samples,
+                             replace=False)
+        fit_data = features_reduced[fit_idx]
+        print(f"  Subsampled {max_fit_samples:,} / "
+              f"{len(features_reduced):,} for fitting")
+    else:
+        fit_data = features_reduced
+
+    # ── Step 3: Fit HDBSCAN ──────────────────────────────────────────
+    print(f"  Fitting HDBSCAN (min_cluster_size={min_cluster_size}, "
+          f"min_samples={min_samples})...")
+    model = hdb.HDBSCAN(
         min_cluster_size=min_cluster_size,
         min_samples=min_samples,
         core_dist_n_jobs=-1,
+        prediction_data=True,  # required for approximate_predict
     )
-    labels = model.fit_predict(features_reduced)
+    model.fit(fit_data)
 
-    n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
-    n_noise = (labels == -1).sum()
-    print(f"  Found {n_clusters} clusters, {n_noise:,} noise points")
+    n_clusters = len(set(model.labels_)) - (1 if -1 in model.labels_ else 0)
+    n_noise_fit = int((model.labels_ == -1).sum())
+    print(f"  Fit: {n_clusters} clusters, "
+          f"{n_noise_fit:,} noise ({n_noise_fit / len(fit_data) * 100:.1f}%)")
 
-    return labels, model
+    if n_clusters < 2:
+        print("  WARNING: HDBSCAN found fewer than 2 clusters. "
+              "Try lowering min_cluster_size or increasing max_fit_samples.")
+
+    # ── Step 4: Predict labels for all pixels ────────────────────────
+    if predict_on_full:
+        print(f"  Predicting labels for {len(full_features):,} pixels "
+              f"via approximate_predict...")
+        if pca is not None:
+            all_reduced = pca.transform(full_features)
+        else:
+            all_reduced = full_features
+
+        labels, strengths = hdb.approximate_predict(model, all_reduced)
+
+        n_noise_all = int((labels == -1).sum())
+        pct_noise = n_noise_all / len(labels) * 100
+        print(f"  Full: {n_noise_all:,} noise ({pct_noise:.1f}%)")
+
+        if pct_noise > 50:
+            print(f"  WARNING: {pct_noise:.0f}% noise — downstream analysis "
+                  f"will exclude these pixels. Consider lowering "
+                  f"min_cluster_size (current: {min_cluster_size}).")
+    else:
+        labels = model.labels_
+
+    # ── Quality assessment ────────────────────────────────────────────
+    n_final = len(set(labels)) - (1 if -1 in labels else 0)
+    noise_fraction = float((labels == -1).sum()) / len(labels)
+    usable = (n_final >= HDBSCAN_MIN_USABLE_CLUSTERS
+              and noise_fraction <= HDBSCAN_MAX_NOISE_FRACTION)
+
+    quality = {
+        "n_clusters": n_final,
+        "noise_fraction": round(noise_fraction, 4),
+        "usable": usable,
+    }
+    print(f"  Final: {n_final} clusters, "
+          f"{int(noise_fraction * len(labels)):,} noise "
+          f"({noise_fraction:.1%})"
+          f"{'' if usable else ' — UNUSABLE, fallback required'}")
+
+    return labels, model, quality
 
 
 def cluster_embeddings(features, valid_mask, full_features, profile,
@@ -212,12 +319,22 @@ def cluster_embeddings(features, valid_mask, full_features, profile,
     os.makedirs(output_dir, exist_ok=True)
 
     # Run clustering on embeddings only
+    hdbscan_quality = None
+
     if method == "kmeans":
         labels, model = run_kmeans(features, n_clusters, full_features)
     elif method == "gmm":
         labels, probs, model = run_gmm(features, n_clusters, full_features)
     elif method == "hdbscan":
-        labels, model = run_hdbscan(full_features)
+        labels, model, hdbscan_quality = run_hdbscan(features, full_features)
+
+        if not hdbscan_quality["usable"]:
+            fallback_k = n_clusters if n_clusters else HDBSCAN_FALLBACK_K
+            print(f"\n  HDBSCAN produced unusable results "
+                  f"({hdbscan_quality['n_clusters']} clusters, "
+                  f"{hdbscan_quality['noise_fraction']:.0%} noise).")
+            print(f"  Falling back to K-Means with k={fallback_k}...\n")
+            labels, model = run_kmeans(features, fallback_k, full_features)
     else:
         raise ValueError(f"Unknown method: {method}")
 
@@ -237,10 +354,9 @@ def cluster_embeddings(features, valid_mask, full_features, profile,
     # Evaluate clustering quality
     valid = labels >= 0
     n_unique = len(np.unique(labels[valid]))
-    max_sil = 50_000
-    if valid.sum() > max_sil:
+    if valid.sum() > SILHOUETTE_MAX_SAMPLES:
         idx = np.random.RandomState(RANDOM_STATE).choice(
-            valid.sum(), max_sil, replace=False
+            valid.sum(), SILHOUETTE_MAX_SAMPLES, replace=False
         )
         feat_sub = full_features[valid][idx]
         lab_sub = labels[valid][idx]
@@ -260,6 +376,17 @@ def cluster_embeddings(features, valid_mask, full_features, profile,
         "n_clusters": n_unique,
         "n_valid_pixels": int(valid.sum()),
     }
+
+    # Record HDBSCAN outcome if it was attempted
+    if hdbscan_quality is not None:
+        metrics["hdbscan_quality"] = hdbscan_quality
+        if not hdbscan_quality["usable"]:
+            metrics["hdbscan_fallback"] = True
+            metrics["note"] = (
+                f"HDBSCAN unusable ({hdbscan_quality['n_clusters']} clusters, "
+                f"{hdbscan_quality['noise_fraction']:.0%} noise) — "
+                f"fell back to K-Means"
+            )
 
     print("Land Cover Clustering Metrics:")
     for k, v in metrics.items():

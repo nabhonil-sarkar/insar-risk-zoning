@@ -1,9 +1,16 @@
 """
 Module 3 — Data Alignment (Option B: Two-Stage)
 
-Aligns InSAR velocity data to the same spatial grid as the embeddings.
-Does NOT fuse them into a single feature matrix — each dataset stays
-separate for independent analysis.
+Aligns InSAR velocity data to the same spatial grid as the embeddings,
+then flattens the embedding raster into a feature matrix ready for
+clustering.
+
+Does NOT fuse embeddings and InSAR into a single feature matrix — each
+dataset stays separate for independent analysis.
+
+Does NOT normalize embeddings — that is handled once by M2 during
+preprocessing (z-score / minmax / unit-length per settings). This module
+loads the already-normalized `_norm.tif` and flattens it as-is.
 
 Stage 1 clusters on embeddings only.
 Stage 2 overlays InSAR onto the resulting clusters.
@@ -15,7 +22,7 @@ from src.utils.geo_utils import (
     load_raster, save_raster, align_rasters, raster_to_features,
 )
 from config.settings import (
-    PROC_FUSED_DIR, NORMALIZATION_METHOD, RANDOM_STATE,
+    PROC_FUSED_DIR, RANDOM_STATE,
     MAX_CLUSTERING_SAMPLES, SAMPLE_FRACTION,
 )
 
@@ -55,49 +62,21 @@ def align_datasets(embedding_path, insar_velocity_path, output_dir=None):
     return embedding_path, aligned_vel_path
 
 
-def normalize_embedding_features(data, method=None):
-    """
-    Normalize embedding values per-band using z-score.
-
-    Parameters
-    ----------
-    data : np.ndarray
-        Shape (bands, H, W).
-    method : str
-
-    Returns
-    -------
-    normalized : np.ndarray
-    """
-    if method is None:
-        method = NORMALIZATION_METHOD
-
-    normalized = data.copy().astype(np.float32)
-    bands = normalized.shape[0]
-
-    for b in range(bands):
-        band_data = normalized[b]
-        valid = ~np.isnan(band_data)
-        if valid.sum() > 0:
-            mean = band_data[valid].mean()
-            std = band_data[valid].std()
-            if std > 0:
-                band_data[valid] = (band_data[valid] - mean) / std
-            else:
-                band_data[valid] = 0
-
-    return normalized
-
 
 def prepare_embedding_features(embedding_path, sample=True):
     """
-    Load embeddings, flatten to feature matrix, normalize,
+    Load pre-normalized embeddings, flatten to feature matrix,
     and optionally subsample for clustering.
+
+    Expects the input file to already be normalized by M2
+    (preprocess_embeddings). No additional normalization is applied here.
 
     Parameters
     ----------
     embedding_path : str
+        Path to the normalized embedding GeoTIFF (64 bands, *_norm.tif).
     sample : bool
+        If True, subsample for clustering efficiency.
 
     Returns
     -------
@@ -111,10 +90,7 @@ def prepare_embedding_features(embedding_path, sample=True):
     """
     data, profile = load_raster(embedding_path)
 
-    # Normalize embeddings
-    data = normalize_embedding_features(data)
-
-    # Flatten to feature matrix
+    # Flatten to feature matrix — data is already normalized by M2
     full_features, valid_mask = raster_to_features(data, nodata=np.nan)
     full_features = np.nan_to_num(full_features, nan=0.0)
 

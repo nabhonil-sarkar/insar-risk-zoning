@@ -15,7 +15,7 @@ import rasterio
 from src.utils.geo_utils import load_raster, save_raster, reproject_raster
 from config.settings import (
     RAW_INSAR_DIR, PROC_INSAR_DIR, COMMON_CRS, COMMON_RESOLUTION,
-    SUBSIDENCE_THRESHOLDS,
+    SUBSIDENCE_THRESHOLDS, COHERENCE_THRESHOLD,
 )
 
 
@@ -104,13 +104,12 @@ def preprocess_insar(velocity_path, coherence_path=None, output_dir=None):
         coh_data, _ = load_raster(reproj_coh_path)
 
         # Mask pixels with coherence below threshold
-        coherence_threshold = 0.3
-        low_quality = coh_data[0] < coherence_threshold
+        low_quality = coh_data[0] < COHERENCE_THRESHOLD
         vel_data[0][low_quality] = np.nan
 
         masked_path = os.path.join(output_dir, "velocity_masked.tif")
         save_raster(masked_path, vel_data, vel_profile, nodata=np.nan)
-        print(f"Masked {low_quality.sum():,} low-coherence pixels (threshold={coherence_threshold})")
+        print(f"Masked {low_quality.sum():,} low-coherence pixels (threshold={COHERENCE_THRESHOLD})")
         return masked_path
     else:
         return reproj_vel_path

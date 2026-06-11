@@ -2,6 +2,57 @@
 
 All notable changes to the InSAR Risk Zoning pipeline are documented here.
 
+## [0.3.0] — 2026-06-12
+
+Scientific-rigor release driven by external code review. Two critical bugs fixed (one of which mislabelled the fastest-sinking pixels as stable), the risk model now genuinely uses land cover context, and velocities are converted from line-of-sight to vertical terms.
+
+### Critical: Severity binning bug (`m4b_insar_overlay.py`, `settings.py`)
+
+**Problem:** Severity was initialized to 0 ("stable") and the threshold bins did not cover the full velocity range. The "rapid" bin was (-100, -25) — any pixel subsiding faster than -100 mm/yr fell outside every bin and silently stayed classified as stable. North Jakarta has documented rates beyond -100 mm/yr, so the fastest-sinking pixels in the study area were labelled the safest. Velocities above +2 mm/yr had the same gap.
+
+**Fix (three layers of defense):**
+- `SUBSIDENCE_THRESHOLDS` bins are now half-open `[lo, hi)` and jointly cover the entire real line: rapid = `(-inf, -25)`, stable = `(-2, +inf)`. Uplift above +2 mm/yr is deliberately folded into stable and reported separately (`UPLIFT_REPORT_THRESHOLD`).
+- Severity initialization changed from 0 to -1 so unclassified pixels are visible, never silently stable.
+- Runtime assertion: `classify_subsidence_severity()` raises `ValueError` if any finite velocity escapes classification, so a future config regression fails loudly instead of corrupting results.
+
+### Critical: Risk model now uses land cover context (`m5_risk_interpretation.py`, `settings.py`)
+
+**Problem:** The README and report claimed risk = land cover context × subsidence severity, but `create_risk_zones()` mapped severity directly to risk — the cluster labels were passed in and never used. Stage 1 contributed nothing to the final risk raster except calibration, undermining the entire justification for the two-stage design.
+
+**Fix:** Exposure-weighted risk via an explicit severity × exposure lookup:
+- `CLUSTER_EXPOSURE` (settings): analyst assigns low/medium/high exposure per cluster after inspecting the cluster map.
+- `EXPOSURE_RISK_MATRIX` (settings): 4×3 lookup mapping (severity, exposure) → risk code. High exposure promotes risk one level (moderate subsidence under dense urban → very high); low exposure demotes one level.
+- Graceful degradation: with no exposure assigned, all clusters default to medium, which reproduces the previous severity-only mapping exactly. A warning instructs the analyst to assign exposure and rerun with `--force-from m4b`.
+
+### LOS-to-vertical velocity conversion (`m1_insar_ingestion.py`, `settings.py`)
+
+**Problem:** InSAR measures line-of-sight displacement, but the severity thresholds were framed as vertical subsidence rates. At Sentinel-1's ~39° incidence, LOS underestimates vertical motion by ~22%.
+
+**Fix:** New `los_to_vertical()` in M1 projects velocities (v_vert = v_LOS / cos θ) immediately after reprojection, so every downstream product — calibration, severity, risk — operates in vertical terms. Controlled by `INSAR_VELOCITY_IS_LOS` and `INSAR_INCIDENCE_ANGLE_DEG` (default 39°, replace with frame-specific value from LiCSAR metadata). Assumes purely vertical deformation — appropriate for groundwater-driven subsidence; ascending/descending decomposition noted as future work.
+
+### Calibration sanity checks (`run_full_pipeline.py`, `settings.py`)
+
+**Problem:** Selecting the lowest-velocity-std cluster as the stable reference could calibrate the bias into the data if that cluster were subsiding uniformly.
+
+**Fix:** Two guards:
+- Shift-magnitude warning if |reference velocity| exceeds `CALIBRATION_MAX_SHIFT` (15 mm/yr) — the "stable" cluster may itself be deforming.
+- Sensitivity report comparing the top-3 reference candidates (lowest std); if their medians disagree beyond `CALIBRATION_CANDIDATE_TOLERANCE` (3 mm/yr), the spread is flagged as calibration uncertainty.
+
+### Config consistency (`settings.py`)
+
+- `ACTIVE_ROI` now points to `JAKARTA_ROI`, which now matches the methodology document's coordinates (106.45–107.22°E, 6.54–6.01°S, ~85 × 59 km). Previously three different ROIs existed across code, settings, and documentation.
+- Deleted dead `INSAR_WEIGHT = 1.5` left over from the abandoned single-stage fusion approach.
+
+### Test suite (`tests/`)
+
+- **New `test_severity.py`** — 8 tests for the severity classifier, including the exact regression case (-150 mm/yr must be rapid, never stable), half-open boundary behavior, full-real-line coverage, NaN handling, and a deliberately gappy config that must raise. These tests would have caught the binning bug.
+- **New `test_alignment.py`** — replaces the stale `test_fusion.py` (which tested the removed fusion-era `normalize_features` API). Verifies feature matrix shape, finiteness, no re-normalization in M3 (M2 is the single authority), and sampling caps.
+- **Deleted `test_fusion.py`.**
+
+### Documentation
+
+- README: added Limitations section (single LOS geometry, relative velocities, resolution mismatch, threshold conventions), exposure-weighted risk explanation, calibration sanity check documentation, corrected project structure.
+
 ## [0.2.0] — 2026-06-11
 
 Five production-hardening fixes applied across the pipeline. Every module touched is backward-compatible — existing data outputs remain valid.

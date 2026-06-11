@@ -38,13 +38,15 @@ PIPELINE_STATE_FILE = os.path.join(OUTPUT_DIR, "pipeline_state.json")
 # REGION OF INTEREST — Jakarta
 # =============================================================================
 # [min_lon, min_lat, max_lon, max_lat]
-JAKARTA_ROI = [106.65, -6.35, 106.95, -6.10]
+# Full study area — Jakarta Metropolitan Area (~85 x 59 km), matching README
+JAKARTA_ROI = [106.45, -6.54, 107.22, -6.01]
 
 # Smaller test area for development (North Jakarta coastal strip)
 JAKARTA_TEST_ROI = [106.78, -6.15, 106.92, -6.08]
 
-# Use test ROI during development, switch to full ROI for production
-ACTIVE_ROI = JAKARTA_TEST_ROI
+# Production runs use the full ROI. Switch to JAKARTA_TEST_ROI only for
+# fast development iterations.
+ACTIVE_ROI = JAKARTA_ROI
 
 # =============================================================================
 # EARTH ENGINE EXPORT
@@ -62,6 +64,17 @@ EXPORT_CRS = "EPSG:4326"
 INSAR_ORBIT_DIRECTION = "DESCENDING"
 INSAR_POLARIZATION = "VV"
 
+# LOS -> vertical projection. LiCSBAS velocities are line-of-sight; the
+# severity thresholds are vertical rates. v_vert = v_los / cos(incidence).
+# Assumes purely vertical deformation — reasonable for groundwater-driven
+# subsidence in Jakarta. For rigorous separation of vertical/horizontal,
+# use ascending + descending decomposition (future work).
+INSAR_VELOCITY_IS_LOS = True
+# Sentinel-1 IW incidence spans ~29-46 deg across the swath; 39 deg is the
+# mid-swath default. Replace with the frame-specific value from the LiCSAR
+# metadata (or use the per-pixel incidence raster) for best accuracy.
+INSAR_INCIDENCE_ANGLE_DEG = 39.0
+
 # Coherence masking: pixels below this threshold are discarded as unreliable
 COHERENCE_THRESHOLD = 0.3
 
@@ -69,13 +82,61 @@ COHERENCE_THRESHOLD = 0.3
 # stable reference (avoids selecting a tiny cluster with low std by chance)
 CALIBRATION_MIN_CLUSTER_PIXELS = 100
 
-# Velocity thresholds (mm/year) for rough categorization
+# Calibration sanity checks: warn if the computed reference shift exceeds
+# this magnitude (mm/yr) — a large shift may mean the "stable" reference
+# cluster is itself deforming uniformly.
+CALIBRATION_MAX_SHIFT = 15.0
+# Warn if the medians of the top reference candidates (lowest std) disagree
+# by more than this (mm/yr) — the calibration would then be sensitive to
+# reference choice.
+CALIBRATION_CANDIDATE_TOLERANCE = 3.0
+
+# Velocity thresholds (mm/year), in VERTICAL terms (see LOS correction, M1).
+# Bins are half-open [lo, hi) and cover the entire real line so no velocity
+# can escape classification. Uplift (> +2 mm/yr) is folded into "stable" for
+# risk purposes but counted and reported separately by M4B.
 SUBSIDENCE_THRESHOLDS = {
-    "stable": (-2, 2),
-    "slow": (-10, -2),
-    "moderate": (-25, -10),
-    "rapid": (-100, -25),
+    "stable":   (-2.0, float("inf")),
+    "slow":     (-10.0, -2.0),
+    "moderate": (-25.0, -10.0),
+    "rapid":    (float("-inf"), -25.0),
 }
+
+# Uplift faster than this (mm/yr) is reported separately in the severity
+# distribution printout (still classified "stable" for risk).
+UPLIFT_REPORT_THRESHOLD = 2.0
+
+# =============================================================================
+# RISK MODEL — exposure-weighted severity
+# =============================================================================
+# Land cover context modifies subsidence severity: the same -30 mm/yr is a
+# higher risk under dense urban fabric than under bare ground. Clusters are
+# unsupervised, so exposure must be assigned manually after inspecting
+# figures/landcover_clusters.png. Keys are cluster IDs from the current run.
+#
+# Example after inspection:
+#   CLUSTER_EXPOSURE = {0: "high", 1: "low", 2: "medium", 3: "high"}
+CLUSTER_EXPOSURE = {}
+
+# Exposure assumed for clusters not listed in CLUSTER_EXPOSURE. With the
+# default matrix below, "medium" for all clusters reproduces the plain
+# severity -> risk mapping (1, 2, 3, 4).
+DEFAULT_EXPOSURE = "medium"
+
+# Risk lookup: rows = severity (0=stable, 1=slow, 2=moderate, 3=rapid),
+# columns = exposure (low, medium, high). Values = risk code
+# (1=low, 2=moderate, 3=high, 4=very_high).
+# Rationale: high exposure promotes risk one level (moderate subsidence under
+# dense urban fabric -> very high); low exposure demotes one level (rapid
+# subsidence on unbuilt land remains high — still a hazard signal — but not
+# very high). Stable ground is low risk regardless of what sits on it.
+EXPOSURE_RISK_MATRIX = [
+    # exposure:  low  medium  high
+    [1, 1, 1],   # stable
+    [1, 2, 2],   # slow
+    [2, 3, 4],   # moderate
+    [3, 4, 4],   # rapid
+]
 
 # =============================================================================
 # FEATURE FUSION
@@ -83,10 +144,6 @@ SUBSIDENCE_THRESHOLDS = {
 COMMON_RESOLUTION = 30  # meters
 COMMON_CRS = "EPSG:32748"  # UTM Zone 48S (Jakarta)
 NORMALIZATION_METHOD = "zscore"  # 'zscore' or 'minmax'
-
-# Feature weighting: how much to emphasize InSAR vs embeddings
-# 1.0 = equal weight, >1.0 = more InSAR emphasis
-INSAR_WEIGHT = 1.5
 
 # =============================================================================
 # CLUSTERING PARAMETERS

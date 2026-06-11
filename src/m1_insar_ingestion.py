@@ -16,6 +16,7 @@ from src.utils.geo_utils import load_raster, save_raster, reproject_raster
 from config.settings import (
     RAW_INSAR_DIR, PROC_INSAR_DIR, COMMON_CRS, COMMON_RESOLUTION,
     SUBSIDENCE_THRESHOLDS, COHERENCE_THRESHOLD,
+    INSAR_VELOCITY_IS_LOS, INSAR_INCIDENCE_ANGLE_DEG,
 )
 
 
@@ -65,13 +66,41 @@ def load_coherence_map(filepath):
     return coherence, profile
 
 
+def los_to_vertical(velocity, incidence_angle_deg=None):
+    """
+    Project line-of-sight (LOS) velocity to vertical velocity.
+
+    Assumes deformation is purely vertical, so v_vert = v_los / cos(theta).
+    This is a standard approximation for groundwater-extraction subsidence
+    (predominantly vertical), but it ignores any horizontal component. For
+    rigorous decomposition, combine ascending and descending geometries.
+
+    Parameters
+    ----------
+    velocity : np.ndarray
+        LOS velocity in mm/yr (any shape). NaNs pass through.
+    incidence_angle_deg : float, optional
+        Radar incidence angle. Defaults to INSAR_INCIDENCE_ANGLE_DEG.
+
+    Returns
+    -------
+    np.ndarray
+        Vertical velocity in mm/yr, same shape.
+    """
+    if incidence_angle_deg is None:
+        incidence_angle_deg = INSAR_INCIDENCE_ANGLE_DEG
+    factor = 1.0 / np.cos(np.radians(incidence_angle_deg))
+    return velocity * factor
+
+
 def preprocess_insar(velocity_path, coherence_path=None, output_dir=None):
     """
     Full InSAR preprocessing pipeline:
     1. Load velocity (and optionally coherence)
     2. Reproject to common CRS
-    3. Apply coherence mask (discard low-quality pixels)
-    4. Save processed outputs
+    3. Project LOS velocity to vertical (if INSAR_VELOCITY_IS_LOS)
+    4. Apply coherence mask (discard low-quality pixels)
+    5. Save processed outputs
 
     Parameters
     ----------
@@ -85,7 +114,7 @@ def preprocess_insar(velocity_path, coherence_path=None, output_dir=None):
     Returns
     -------
     output_velocity_path : str
-        Path to the processed, reprojected velocity file.
+        Path to the processed, reprojected velocity file (vertical mm/yr).
     """
     if output_dir is None:
         output_dir = PROC_INSAR_DIR
@@ -94,6 +123,17 @@ def preprocess_insar(velocity_path, coherence_path=None, output_dir=None):
     # Step 1: Reproject velocity to common CRS
     reproj_vel_path = os.path.join(output_dir, "velocity_reproj.tif")
     reproject_raster(velocity_path, reproj_vel_path, COMMON_CRS, COMMON_RESOLUTION)
+
+    # Step 1b: Project LOS velocity to vertical so every downstream product
+    # (calibration, severity, risk) is in vertical terms.
+    if INSAR_VELOCITY_IS_LOS:
+        vel_data, vel_profile = load_raster(reproj_vel_path)
+        factor = 1.0 / np.cos(np.radians(INSAR_INCIDENCE_ANGLE_DEG))
+        vel_data = los_to_vertical(vel_data)
+        save_raster(reproj_vel_path, vel_data, vel_profile, nodata=np.nan)
+        print(f"Converted LOS -> vertical velocity "
+              f"(incidence={INSAR_INCIDENCE_ANGLE_DEG:g} deg, "
+              f"factor={factor:.3f})")
 
     # Step 2: Apply coherence masking if available
     if coherence_path is not None:

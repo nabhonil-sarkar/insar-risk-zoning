@@ -15,7 +15,9 @@ import os
 import numpy as np
 import pandas as pd
 from src.utils.geo_utils import load_raster, save_raster, features_to_raster
-from config.settings import OUT_CLUSTERS_DIR, SUBSIDENCE_THRESHOLDS
+from config.settings import (
+    OUT_CLUSTERS_DIR, SUBSIDENCE_THRESHOLDS, UPLIFT_REPORT_THRESHOLD,
+)
 
 
 def load_aligned_velocity(velocity_path, valid_mask):
@@ -128,15 +130,30 @@ def classify_subsidence_severity(velocity_flat, thresholds=None):
         thresholds = SUBSIDENCE_THRESHOLDS
 
     severity_names = {}
-    severity = np.full_like(velocity_flat, 0, dtype=np.int8)
+    # Initialize to -1 (unclassified), NOT 0: with a 0 default, any gap in
+    # the threshold bins silently classifies pixels as "stable" — this is
+    # exactly the bug that mislabelled rapidly subsiding pixels (< -100
+    # mm/yr) as stable in v0.2.0.
+    severity = np.full(velocity_flat.shape, -1, dtype=np.int8)
 
     for i, (name, (lo, hi)) in enumerate(thresholds.items()):
         mask = (velocity_flat >= lo) & (velocity_flat < hi)
         severity[mask] = i
         severity_names[i] = name
 
-    # Handle NaN velocities
+    # NaN velocities are invalid
     severity[np.isnan(velocity_flat)] = -1
+
+    # Safety net: bins now cover the full real line, so every finite
+    # velocity MUST be classified. Fail loudly if the config regresses.
+    unclassified = (severity == -1) & ~np.isnan(velocity_flat)
+    if unclassified.any():
+        raise ValueError(
+            f"{int(unclassified.sum()):,} finite-velocity pixels fall "
+            f"outside all severity bins. SUBSIDENCE_THRESHOLDS has gaps — "
+            f"bins must be half-open [lo, hi) and jointly cover "
+            f"(-inf, +inf)."
+        )
 
     # Print distribution
     print("\n=== Subsidence Severity Distribution ===\n")
@@ -145,6 +162,14 @@ def classify_subsidence_severity(velocity_flat, thresholds=None):
         count = (severity == i).sum()
         pct = count / total_valid * 100 if total_valid > 0 else 0
         print(f"  {name}: {count:,} pixels ({pct:.1f}%)")
+
+    # Transparency: uplift is folded into "stable" for risk purposes,
+    # but report it so the choice is visible.
+    n_uplift = int((velocity_flat > UPLIFT_REPORT_THRESHOLD).sum())
+    if n_uplift > 0:
+        pct = n_uplift / total_valid * 100 if total_valid > 0 else 0
+        print(f"  (of which uplift > +{UPLIFT_REPORT_THRESHOLD:g} mm/yr: "
+              f"{n_uplift:,} pixels, {pct:.1f}% — classified stable)")
 
     return severity, severity_names
 

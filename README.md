@@ -7,7 +7,7 @@ Two-stage discovery of subsidence risk zones by combining **InSAR displacement d
 This project combines two independent satellite-derived views of the Earth's surface to map urban subsidence risk:
 
 - **AlphaEarth Embeddings** encode *what's on the surface* — 64-dimensional learned representations of land cover, vegetation phenology, and built environment from Google's foundation model at 10 m resolution.
-- **InSAR (Interferometric SAR)** measures *how fast the ground is moving* — line-of-sight displacement velocity in mm/year from Sentinel-1, processed via LiCSBAS.
+- **InSAR (Interferometric SAR)** measures *how fast the ground is moving* — displacement velocity in mm/year from Sentinel-1, processed via LiCSBAS. Line-of-sight velocities are projected to vertical rates during ingestion (v_vert = v_LOS / cos θ, assuming predominantly vertical deformation — appropriate for groundwater-driven subsidence).
 
 The key methodological choice: these two datasets are **never combined into a single feature space**. Unsupervised clustering operates on embeddings alone to discover land cover types, then InSAR velocity is overlaid independently onto each cluster to characterize subsidence severity. This two-stage separation avoids the dimensionality imbalance where 64 embedding dimensions would dominate 1 velocity dimension in any distance-based algorithm.
 
@@ -114,7 +114,9 @@ This reads `pipeline_state.json` (written by the main pipeline) to discover file
 
 **Two-stage separation.** Clustering on embeddings alone, then overlaying InSAR, avoids dimensionality imbalance and ensures scientific defensibility. Neither dataset contaminates the other.
 
-**Auto-calibration.** InSAR velocities are relative to an arbitrary reference point. The pipeline identifies the most stable land cover cluster (lowest velocity standard deviation) and shifts the entire field so stable areas read ~0 mm/yr. No manual intervention needed.
+**Exposure-weighted risk.** Risk combines per-pixel subsidence severity with a per-cluster exposure level (low/medium/high) via an explicit severity × exposure lookup matrix (`EXPOSURE_RISK_MATRIX` in `config/settings.py`). The same −30 mm/yr is a higher risk under dense urban fabric than on unbuilt land. Because clusters are unsupervised, exposure is assigned by the analyst: run the pipeline, inspect `figures/landcover_clusters.png` and the per-cluster velocity stats, set `CLUSTER_EXPOSURE` in settings (e.g. `{0: "high", 1: "low"}`), then rerun with `--force-from m4b`. With no exposure assigned, all clusters default to medium, which reduces exactly to a severity-only mapping.
+
+**Auto-calibration with sanity checks.** InSAR velocities are relative to an arbitrary reference point. The pipeline identifies the most stable land cover cluster (lowest velocity standard deviation) and shifts the entire field so stable areas read ~0 mm/yr. Two guards back this up: a warning if the shift magnitude exceeds `CALIBRATION_MAX_SHIFT` (the "stable" cluster may itself be deforming uniformly), and a sensitivity report comparing the top reference candidates — if their medians disagree beyond `CALIBRATION_CANDIDATE_TOLERANCE`, the spread is flagged as calibration uncertainty.
 
 **Idempotency.** Each expensive step (reprojection, alignment, clustering) checks for existing output before running. Subsequent runs skip completed work automatically. Use `--force` or `--force-from` to override.
 
@@ -158,6 +160,13 @@ data/output/
 | InSAR Velocity | COMET-LiCSAR / LiCSBAS | ~1 km (10× multi-look) | Open |
 | SAR Data | Sentinel-1 (ESA Copernicus) | ~5 m (IW SLC) | Open |
 
+## Limitations
+
+- **Single LOS geometry.** Vertical rates are derived from one descending Sentinel-1 track under a purely-vertical-deformation assumption (incidence angle configurable via `INSAR_INCIDENCE_ANGLE_DEG`; replace the mid-swath default with the frame-specific value from LiCSAR metadata). Ascending + descending decomposition would separate vertical and horizontal motion rigorously.
+- **Relative velocities.** Calibration anchors the field to the most stable cluster, not to GNSS ground truth; the candidate-spread warning quantifies sensitivity to that choice.
+- **Resolution mismatch.** Embeddings (10–30 m) are far finer than the multi-looked InSAR velocity (~1 km), so severity boundaries inherit InSAR's coarser footprint.
+- **Severity thresholds** are half-open bins in vertical mm/yr covering the entire real line; boundary values belong to the milder class, and uplift > +2 mm/yr is folded into "stable" (reported separately).
+
 ## Project Structure
 
 ```
@@ -182,7 +191,8 @@ insar-risk-zoning/
 │   └── calibrate_velocity.py       # Standalone calibration (ad-hoc use)
 ├── tests/
 │   ├── test_clustering.py
-│   └── test_fusion.py
+│   ├── test_severity.py
+│   └── test_alignment.py
 ├── data/                           # Created by ensure_dirs(), gitignored
 │   ├── raw/
 │   ├── processed/

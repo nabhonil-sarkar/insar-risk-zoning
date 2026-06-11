@@ -19,26 +19,23 @@ from shapely.geometry import shape
 
 from src.utils.geo_utils import load_raster, save_raster, features_to_raster
 from config.settings import (
-    OUT_RISK_MAPS_DIR, OUT_FIGURES_DIR, OUT_CLUSTERS_DIR, SUBSIDENCE_THRESHOLDS,
+    OUT_RISK_MAPS_DIR, OUT_FIGURES_DIR, OUT_CLUSTERS_DIR,
+    SUBSIDENCE_THRESHOLDS,
+    CLUSTER_EXPOSURE, DEFAULT_EXPOSURE, EXPOSURE_RISK_MATRIX,
 )
-
-
-# Risk scoring: land cover context modifies the base subsidence severity
-# Higher score = higher risk
-RISK_SCORES = {
-    # (severity_name): base_score
-    "stable": 0,
-    "slow": 1,
-    "moderate": 2,
-    "rapid": 3,
-}
 
 
 def create_risk_zones(labels, severity, severity_names, valid_mask, profile,
                       output_dir=None):
     """
-    Create a risk raster based on subsidence severity.
-    The severity classification already captures the risk level per pixel.
+    Create a risk raster from subsidence severity weighted by land cover
+    exposure.
+
+    Risk = EXPOSURE_RISK_MATRIX[severity][exposure], where each cluster's
+    exposure level (low/medium/high) is assigned by the analyst in
+    config.settings.CLUSTER_EXPOSURE after inspecting the cluster map.
+    Unassigned clusters use DEFAULT_EXPOSURE; with everything at "medium"
+    this reproduces the plain severity -> risk mapping (1, 2, 3, 4).
 
     Parameters
     ----------
@@ -59,25 +56,46 @@ def create_risk_zones(labels, severity, severity_names, valid_mask, profile,
         output_dir = OUT_RISK_MAPS_DIR
     os.makedirs(output_dir, exist_ok=True)
 
-    # Map severity to risk encoding
-    # 1=low (stable), 2=moderate (slow subsidence), 3=high (moderate subsidence), 4=very_high (rapid)
-    severity_to_risk = {
-        0: 1,  # stable -> low risk
-        1: 2,  # slow -> moderate risk
-        2: 3,  # moderate -> high risk
-        3: 4,  # rapid -> very high risk
-    }
+    # Risk = f(subsidence severity, land cover exposure).
+    exposure_codes = {"low": 0, "medium": 1, "high": 2}
+
+    if not CLUSTER_EXPOSURE:
+        print(
+            "WARNING: CLUSTER_EXPOSURE is empty — all clusters treated as "
+            f"'{DEFAULT_EXPOSURE}' exposure (severity-only risk). Inspect "
+            "figures/landcover_clusters.png, assign exposure levels in "
+            "config/settings.py, then rerun with --force-from m4b for "
+            "land-cover-aware risk zoning."
+        )
 
     risk_labels = np.full_like(severity, -1, dtype=np.int8)
-    for sev_code, risk_code in severity_to_risk.items():
-        risk_labels[severity == sev_code] = risk_code
+    valid = (labels >= 0) & (severity >= 0)
+
+    exposure_used = {}
+    for c in np.unique(labels[valid]):
+        exp_name = CLUSTER_EXPOSURE.get(int(c), DEFAULT_EXPOSURE)
+        if exp_name not in exposure_codes:
+            raise ValueError(
+                f"Cluster {int(c)}: unknown exposure '{exp_name}' — "
+                f"must be one of {sorted(exposure_codes)}."
+            )
+        exposure_used[int(c)] = exp_name
+        e = exposure_codes[exp_name]
+        c_mask = valid & (labels == c)
+        for sev_code in range(len(EXPOSURE_RISK_MATRIX)):
+            m = c_mask & (severity == sev_code)
+            risk_labels[m] = EXPOSURE_RISK_MATRIX[sev_code][e]
+
+    print("  Exposure per cluster: " + ", ".join(
+        f"{c}={e}" for c, e in sorted(exposure_used.items())))
 
     risk_raster = features_to_raster(risk_labels, valid_mask, nodata_value=-1)
     risk_path = os.path.join(output_dir, "risk_zones.tif")
     save_raster(risk_path, risk_raster, profile, nodata=-1)
 
     print(f"\nRisk zone raster saved: {risk_path}")
-    print("  Encoding: 1=low, 2=moderate, 3=high, 4=very_high")
+    print("  Encoding: 1=low, 2=moderate, 3=high, 4=very_high "
+          "(severity x exposure weighted)")
 
     return risk_path, risk_labels
 
@@ -138,7 +156,8 @@ def generate_report(cluster_stats, risk_matrix, risk_summary, metrics,
         "         to discover land cover types. No InSAR data used.",
         "Stage 2: InSAR velocity analysis overlaid per land cover cluster.",
         "         Each pixel classified by subsidence severity independently.",
-        "Risk:    Combined from land cover context + subsidence severity.",
+        "Risk:    Severity x exposure lookup (EXPOSURE_RISK_MATRIX).",
+        f"         Cluster exposure: {CLUSTER_EXPOSURE if CLUSTER_EXPOSURE else f'none assigned — all {DEFAULT_EXPOSURE}'}",
         "",
         "LAND COVER CLUSTERING METRICS (Stage 1)",
         "-" * 40,

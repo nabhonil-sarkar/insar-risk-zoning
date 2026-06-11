@@ -43,6 +43,7 @@ from config.settings import (
     OUT_CLUSTERS_DIR, OUT_RISK_MAPS_DIR, OUT_FIGURES_DIR,
     OUT_LOG_DIR, PIPELINE_STATE_FILE, DEFAULT_N_CLUSTERS,
     CALIBRATION_MIN_CLUSTER_PIXELS,
+    CALIBRATION_MAX_SHIFT, CALIBRATION_CANDIDATE_TOLERANCE,
 )
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -256,29 +257,53 @@ def calibrate_velocity_field(label_raster, velocity_path, output_path,
 
     # ── Find the most stable cluster (lowest velocity std) ───────────
     logger.info("  Scanning clusters for stable reference...")
-    best_cluster = None
-    best_std = float("inf")
+    candidates = []  # (std, median, cluster, n)
 
     for c in sorted(np.unique(labels_2d[labels_2d >= 0])):
         mask = (labels_2d == c) & ~np.isnan(vel) & (vel != 0)
         vals = vel[mask]
         if len(vals) > CALIBRATION_MIN_CLUSTER_PIXELS:
             std = float(vals.std())
-            logger.info(f"    Cluster {c}: median={np.median(vals):+.2f}, "
+            med = float(np.median(vals))
+            logger.info(f"    Cluster {c}: median={med:+.2f}, "
                         f"std={std:.2f}, n={len(vals):,}")
-            if std < best_std:
-                best_std = std
-                best_cluster = c
+            candidates.append((std, med, int(c), len(vals)))
 
-    if best_cluster is None:
+    if not candidates:
         logger.warning("  No suitable reference cluster found. "
                        "Skipping calibration.")
         return velocity_path, 0.0, -1
 
-    # ── Compute and apply the shift ──────────────────────────────────
-    ref_mask = (labels_2d == best_cluster) & ~np.isnan(vel) & (vel != 0)
-    ref_velocity = float(np.median(vel[ref_mask]))
+    candidates.sort()  # by std ascending
+    best_std, ref_velocity, best_cluster, _ = candidates[0]
 
+    # ── Sanity check 1: shift magnitude ──────────────────────────────
+    if abs(ref_velocity) > CALIBRATION_MAX_SHIFT:
+        logger.warning(
+            f"  Calibration shift {ref_velocity:+.2f} mm/yr exceeds "
+            f"CALIBRATION_MAX_SHIFT ({CALIBRATION_MAX_SHIFT:g}). The "
+            f"reference cluster may itself be deforming uniformly — "
+            f"verify cluster {best_cluster} against known stable ground "
+            f"before trusting calibrated rates."
+        )
+
+    # ── Sanity check 2: sensitivity to reference choice ──────────────
+    top = candidates[:3]
+    if len(top) > 1:
+        medians = [m for _, m, _, _ in top]
+        spread = max(medians) - min(medians)
+        detail = ", ".join(f"C{c}: median={m:+.2f} (std={s:.2f})"
+                           for s, m, c, _ in top)
+        logger.info(f"  Reference candidates (lowest std): {detail}")
+        if spread > CALIBRATION_CANDIDATE_TOLERANCE:
+            logger.warning(
+                f"  Top reference candidates disagree by {spread:.2f} mm/yr "
+                f"(> {CALIBRATION_CANDIDATE_TOLERANCE:g}) — calibration is "
+                f"sensitive to reference choice. Report this spread as "
+                f"calibration uncertainty."
+            )
+
+    # ── Compute and apply the shift ──────────────────────────────────
     valid = ~np.isnan(vel) & (vel != 0)
     vel_calibrated = vel.copy()
     vel_calibrated[valid] -= ref_velocity

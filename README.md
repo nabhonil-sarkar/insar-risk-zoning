@@ -216,4 +216,6 @@ Python 3.10+ with the following packages (see `requirements.txt`):
 
 ## License
 
-MIT
+Copyright © 2026 Nabhonil Sarkar. All rights reserved.
+
+This code is provided for reference and evaluation purposes only. No license is granted for use, modification, or distribution. For licensing or commercial inquiries, please contact the author.

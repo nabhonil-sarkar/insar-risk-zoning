@@ -73,7 +73,15 @@ def save_raster(filepath, data, profile, nodata=None):
     print(f"Saved: {filepath} — shape {data.shape}")
 
 
-def reproject_raster(src_path, dst_path, dst_crs, dst_resolution=None):
+def _resolve_resampling(resampling):
+    """Accept a Resampling enum or its lowercase string name."""
+    if isinstance(resampling, str):
+        return Resampling[resampling.lower()]
+    return resampling
+
+
+def reproject_raster(src_path, dst_path, dst_crs, dst_resolution=None,
+                     resampling=Resampling.bilinear):
     """
     Reproject a raster to a new CRS and optionally resample to a new resolution.
 
@@ -87,12 +95,17 @@ def reproject_raster(src_path, dst_path, dst_crs, dst_resolution=None):
         Target CRS (e.g., 'EPSG:32748').
     dst_resolution : float, optional
         Target pixel size in CRS units (meters for UTM). None keeps source resolution.
+    resampling : rasterio.warp.Resampling or str
+        Interpolation method. Use 'nearest' for categorical data or for
+        sparse measurements that must not be blended (e.g. InSAR velocity
+        upsampled far beyond its native resolution). Default bilinear.
 
     Returns
     -------
     dst_path : str
         Path to the reprojected raster.
     """
+    resampling = _resolve_resampling(resampling)
     with rasterio.open(src_path) as src:
         transform, width, height = calculate_default_transform(
             src.crs, dst_crs, src.width, src.height, *src.bounds,
@@ -117,13 +130,15 @@ def reproject_raster(src_path, dst_path, dst_crs, dst_resolution=None):
                     src_crs=src.crs,
                     dst_transform=transform,
                     dst_crs=dst_crs,
-                    resampling=Resampling.bilinear,
+                    resampling=resampling,
                 )
-    print(f"Reprojected: {dst_path} -> {dst_crs}")
+    print(f"Reprojected: {dst_path} -> {dst_crs} "
+          f"(resampling={resampling.name})")
     return dst_path
 
 
-def align_rasters(reference_path, target_path, output_path):
+def align_rasters(reference_path, target_path, output_path,
+                  resampling=Resampling.bilinear):
     """
     Resample and align a target raster to match the grid of a reference raster.
     Both must already share the same CRS.
@@ -136,11 +151,14 @@ def align_rasters(reference_path, target_path, output_path):
         Path to the raster to be aligned.
     output_path : str
         Where to save the aligned raster.
+    resampling : rasterio.warp.Resampling or str
+        Interpolation method (see reproject_raster). Default bilinear.
 
     Returns
     -------
     output_path : str
     """
+    resampling = _resolve_resampling(resampling)
     with rasterio.open(reference_path) as ref:
         ref_transform = ref.transform
         ref_crs = ref.crs
@@ -167,9 +185,10 @@ def align_rasters(reference_path, target_path, output_path):
                     src_crs=src.crs,
                     dst_transform=ref_transform,
                     dst_crs=ref_crs,
-                    resampling=Resampling.bilinear,
+                    resampling=resampling,
                 )
-    print(f"Aligned {target_path} to reference grid -> {output_path}")
+    print(f"Aligned {target_path} to reference grid -> {output_path} "
+          f"(resampling={resampling.name})")
     return output_path
 
 

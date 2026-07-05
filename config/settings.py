@@ -53,6 +53,11 @@ ACTIVE_ROI = JAKARTA_ROI
 # =============================================================================
 EMBEDDING_COLLECTION_ID = "GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL"
 EMBEDDING_YEARS = [2020, 2023]
+# The year the pipeline actually analyzes. With both years' exports present
+# in data/raw/embeddings/, file selection previously took the first sorted
+# glob match — i.e. silently 2020 while the docs said 2023 (review finding
+# 1.4). M2 now selects by this year and fails loudly on ambiguity.
+ANALYSIS_YEAR = 2023
 EXPORT_FOLDER = "InSAR_Risk_Zoning_Project"
 EXPORT_SCALE = 10  # meters
 EXPORT_CRS = "EPSG:4326"
@@ -61,8 +66,24 @@ EXPORT_CRS = "EPSG:4326"
 # InSAR PARAMETERS
 # =============================================================================
 # Sentinel-1 parameters
-INSAR_ORBIT_DIRECTION = "DESCENDING"
+# Frame 098A_09673_121312 — the 'A' is ASCENDING (review finding 4.1: this
+# was wrongly "DESCENDING", contradicting the frame ID and methodology doc).
+INSAR_ORBIT_DIRECTION = "ASCENDING"
 INSAR_POLARIZATION = "VV"
+
+# Values in the RAW velocity/coherence rasters that mean "no data" but are
+# not declared as nodata in the file. LiCSBAS-derived GeoTIFFs commonly use
+# 0 for masked pixels. These are converted to NaN in M1 BEFORE any
+# resampling — otherwise interpolation blends them into real velocities,
+# creating attenuated halo pixels around every coverage gap (review
+# finding 1.6, root-cause fix).
+INSAR_NODATA_VALUES = [0.0]
+
+# Resampling for InSAR rasters (velocity + coherence). The raw LiCSBAS grid
+# (~1 km) is far coarser than the 30 m analysis grid, so this is a large
+# upsample: "nearest" preserves each measurement's value exactly (blocky but
+# honest); "bilinear" invents smooth gradients between ~1 km measurements.
+INSAR_RESAMPLING = "nearest"
 
 # LOS -> vertical projection. LiCSBAS velocities are line-of-sight; the
 # severity thresholds are vertical rates. v_vert = v_los / cos(incidence).

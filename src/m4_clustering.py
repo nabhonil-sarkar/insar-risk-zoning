@@ -320,6 +320,9 @@ def cluster_embeddings(features, valid_mask, full_features, profile,
 
     # Run clustering on embeddings only
     hdbscan_quality = None
+    requested_method = method
+    used_method = method
+    used_k = n_clusters
 
     if method == "kmeans":
         labels, model = run_kmeans(features, n_clusters, full_features)
@@ -335,18 +338,25 @@ def cluster_embeddings(features, valid_mask, full_features, profile,
                   f"{hdbscan_quality['noise_fraction']:.0%} noise).")
             print(f"  Falling back to K-Means with k={fallback_k}...\n")
             labels, model = run_kmeans(features, fallback_k, full_features)
+            # Review finding 2.4: outputs must be named after the method
+            # that actually produced them, not the one that was requested —
+            # otherwise a later hdbscan run cache-hits on K-Means labels.
+            used_method = "kmeans"
+            used_k = fallback_k
     else:
         raise ValueError(f"Unknown method: {method}")
 
     # Map labels back to raster
     label_raster = features_to_raster(labels, valid_mask, nodata_value=-1)
 
-    # Save
-    k_str = f"k{n_clusters}" if n_clusters else "auto"
-    label_path = os.path.join(output_dir, f"landcover_clusters_{method}_{k_str}.tif")
+    # Save under the method/k that ACTUALLY ran
+    k_str = f"k{used_k}" if used_k else "auto"
+    label_path = os.path.join(
+        output_dir, f"landcover_clusters_{used_method}_{k_str}.tif"
+    )
     save_raster(label_path, label_raster, profile, nodata=-1)
 
-    model_path = os.path.join(output_dir, f"model_{method}_{k_str}.pkl")
+    model_path = os.path.join(output_dir, f"model_{used_method}_{k_str}.pkl")
     with open(model_path, "wb") as f:
         pickle.dump(model, f)
     print(f"Saved model: {model_path}")
@@ -375,6 +385,14 @@ def cluster_embeddings(features, valid_mask, full_features, profile,
         "davies_bouldin": round(db, 4) if not np.isnan(db) else db,
         "n_clusters": n_unique,
         "n_valid_pixels": int(valid.sum()),
+        # The exact file this run wrote. The orchestrator must use this
+        # instead of re-globbing the output directory: sorted(...)[-1] is
+        # lexicographic, so with e.g. _k12 and _k4 files present, the glob
+        # can resolve to a DIFFERENT clustering than the one just produced
+        # and pipeline_state would then point sub-clustering at stale labels.
+        "label_path": label_path,
+        "requested_method": requested_method,
+        "used_method": used_method,
     }
 
     # Record HDBSCAN outcome if it was attempted

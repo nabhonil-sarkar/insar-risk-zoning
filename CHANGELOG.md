@@ -2,6 +2,102 @@
 
 All notable changes to the InSAR Risk Zoning pipeline are documented here.
 
+## [0.3.1] — 2026-07-06
+
+Reliability release: fingerprint-validated caching, data-integrity guards, and a
+risk-statistics correction. Driven by a second external code review plus one real
+data-poisoning incident caught (and now prevented) by the new guards.
+
+### Fingerprint-validated stage caching (new `src/utils/stage_cache.py`)
+
+Cache invalidation was previously existence-only: changing a setting, a CLI
+argument, or an upstream input silently reused stale outputs. Every cached stage
+(M2, M1, M3, M4, calibration) now writes a JSON sidecar recording a SHA-256
+fingerprint of the settings it depends on, its CLI-resolved parameters, and the
+size+mtime identity of each input file. On the next run the cache is used only if
+all three match; any mismatch logs the changed key and recomputes.
+
+- Fixes the k-cache bug: requesting `--k 4` after a `--k 6` run no longer reuses
+  the six-cluster labels (k is fingerprinted; auto-search fingerprints the search
+  config and accepts only sidecars written under the same config).
+- Fixes the calibration-staleness bug: the labels raster is a fingerprinted input
+  to calibration, so any re-clustering invalidates the calibrated velocity.
+- Clustering quality metrics (silhouette, Davies-Bouldin) persist in the sidecar
+  and are reloaded on cached runs instead of being lost.
+- Covered by `tests/test_stage_cache.py` (10 tests), including a meta-test that
+  validates the stage→settings dependency table against the real `settings.py`,
+  so a renamed setting fails CI rather than silently fingerprinting nothing.
+
+### Data-integrity guards (`m1_insar_ingestion.py`, `run_full_pipeline.py`)
+
+- **Deprecated `calibrate_velocity.py`.** The legacy calibrate-and-copy-back
+  workflow would now re-apply the LOS→vertical factor to already-converted data.
+  The script refuses to run and explains the integrated replacement.
+- **Distinct-file LOS conversion.** M1 no longer overwrites the reprojected file
+  in place; each stage writes its own product (`velocity_reproj.tif` →
+  `velocity_vertical.tif` → `velocity_masked.tif`) and stamps unit metadata
+  (reference frame, incidence angle, scale factor) into GeoTIFF tags.
+- **Raw-directory purity guard.** Discovery refuses to run if any file in
+  `data/raw/insar/` carries processed-product vocabulary (`calibrated`,
+  `aligned`, `vertical`, `masked`, `reproj`). Added after a stale calibrated
+  artifact from the deprecated workflow was silently ingested by a real run.
+- **Safe file discovery.** Sorted listing, coherence and synthetic files excluded
+  from velocity candidates, hard refusal when more than one candidate remains.
+- **Sentinel nodata masked to NaN before any resampling**, with a content-level
+  heuristic that warns when a supposedly raw coastal file contains implausibly
+  little nodata (the signature of an already-processed input).
+- **InSAR resampling is now configurable and defaults to nearest** — appropriate
+  for a ~1 km product placed on a 30 m grid, and it eliminates blended-value
+  halos around nodata gaps entirely.
+
+### Risk-statistics denominator fix (`m4b_insar_overlay.py`, `m5`, state)
+
+Per-cluster subsidence percentages were computed over all cluster pixels,
+including those with no valid velocity — silently under-rating clusters with
+poor InSAR coverage and contradicting the risk matrix (which already excluded
+them). Both now use the valid-velocity denominator, and a new
+`pct_velocity_coverage` column reports coverage explicitly so sparse clusters
+are visibly flagged instead of quietly misclassified. This resolves the
+20.2% vs 32.1% discrepancy between the methodology document's Table 1 and §5.2
+(the same statistic under two denominators).
+
+### Provenance and selection correctness
+
+- HDBSCAN fallback outputs are saved under the method actually used (K-Means),
+  with both requested and used methods recorded in metrics and pipeline state.
+- Embedding selection is driven by a new `ANALYSIS_YEAR` setting and fails
+  loudly on a year mismatch, instead of taking the first file of a sorted glob.
+- `cluster_embeddings` returns the exact label path it wrote, replacing a
+  `sorted(glob)[-1]` lookup that could pick the wrong file.
+- The exposure guard errors out if `CLUSTER_EXPOSURE` references nonexistent
+  cluster IDs or if the labels file changed since exposure was assigned
+  (`--accept-exposure` bypasses after re-verification).
+- `INSAR_ORBIT_DIRECTION` corrected to `ASCENDING` (frame 098A; the A is
+  ascending) — documentation had said descending.
+
+### Runtime robustness
+
+- Non-interactive matplotlib backend forced at pipeline entry; plotting helpers
+  close figures instead of calling `show()`, which could block the pipeline on
+  GUI backends.
+- Removed matplotlib calls deprecated/removed in 3.9+ (`boxplot(labels=)`,
+  `plt.cm.get_cmap`); the code now runs on both old and current matplotlib.
+- `requirements.txt` pinned with version bounds reflecting actual code
+  requirements (notably: standalone `hdbscan` is required for
+  `approximate_predict`, which sklearn's port lacks).
+- Console log handler tolerant of legacy Windows terminal encodings.
+
+### Known state at release
+
+Pixel-level severity classification is currently noise-limited: the May LiCSBAS
+run used a relaxed velocity-std threshold (`-v 200`), and the resulting field's
+per-cluster σ of 32–53 mm/yr exceeds the ±25 mm/yr classification thresholds
+(the observed severity distribution is reproduced by a single Gaussian to within
+~1 point per class). Cluster medians remain physically coherent (Cluster 0:
+−16.9 mm/yr, Cluster 3: −0.1 mm/yr). A LiCSBAS re-run exporting the `vstd`
+uncertainty layer is in progress (`notebooks/LiCSBAS_Jakarta_vstd_rerun.ipynb`);
+vstd-based quality masking in M1 is the next change.
+
 ## [0.3.0] — 2026-06-12
 
 Scientific-rigor release driven by external code review. Two critical bugs fixed (one of which mislabelled the fastest-sinking pixels as stable), the risk model now genuinely uses land cover context, and velocities are converted from line-of-sight to vertical terms.

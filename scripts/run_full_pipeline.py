@@ -34,6 +34,14 @@ import logging
 import numpy as np
 from datetime import datetime
 
+# Force the non-interactive backend BEFORE any module imports pyplot
+# (review finding 6.1): plotting helpers call figure functions during the
+# k-search, which runs before calibration's local Agg switch. On a machine
+# with a GUI backend (e.g. TkAgg on Windows) an interactive show() would
+# block the pipeline waiting for a window to be closed.
+import matplotlib
+matplotlib.use("Agg")
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.settings import (
@@ -44,6 +52,10 @@ from config.settings import (
     OUT_LOG_DIR, PIPELINE_STATE_FILE, DEFAULT_N_CLUSTERS,
     CALIBRATION_MIN_CLUSTER_PIXELS,
     CALIBRATION_MAX_SHIFT, CALIBRATION_CANDIDATE_TOLERANCE,
+    ANALYSIS_YEAR, INSAR_VELOCITY_IS_LOS, CLUSTER_EXPOSURE,
+)
+from src.utils.stage_cache import (
+    cache_valid, write_sidecar, stage_params, file_identity,
 )
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -153,6 +165,32 @@ def compute_force_stages(force_all=False, force_from=None):
     return set()
 
 
+def check_stage_cache(output_path, label, stage, force_stages, params,
+                      inputs=None):
+    """
+    Fingerprint-aware cache check (replaces existence-only find_cached for
+    stages wired into the sidecar system — review findings 2.1–2.4).
+
+    A hit requires: stage not forced, output exists, sidecar exists, config
+    fingerprint matches, and every input raster's identity (size + mtime)
+    matches what the cached output was built from. Any miss reason is logged
+    so silent stale-cache reuse is impossible.
+
+    Returns output_path on a hit, else None.
+    """
+    if stage in force_stages:
+        logger.info(f"  [forced] {label} — reprocessing")
+        return None
+    hit, reason = cache_valid(output_path, params, inputs=inputs)
+    if hit:
+        size_mb = os.path.getsize(output_path) / 1e6
+        logger.info(f"  [cached] {label}: {os.path.basename(output_path)} "
+                    f"({size_mb:.1f} MB)")
+        return output_path
+    logger.info(f"  [recompute] {label} — {reason}")
+    return None
+
+
 def find_cached(pattern, label, stage, force_stages):
     """
     Check if an output file matching `pattern` already exists.
@@ -170,6 +208,168 @@ def find_cached(pattern, label, stage, force_stages):
                     f"({size_mb:.1f} MB)")
         return path
     return None
+
+
+def _discover_insar_inputs():
+    """
+    Safely select the raw InSAR velocity (and coherence) file paths.
+
+    Guards against the file-discovery hazards in review finding 1.3:
+      - Listing is sorted (deterministic, not arbitrary OS order).
+      - Coherence rasters ('coh*') are excluded from velocity candidates
+        but still used for masking.
+      - Stray 'synthetic*' files (which belong in PROC, not RAW) are excluded.
+      - PROCESSED-PRODUCT names are refused outright: a file in data/raw/
+        whose name contains pipeline-output vocabulary ('calibrated',
+        'aligned', 'vertical', 'masked', 'reproj') is almost certainly a
+        stale artifact of the deprecated copy-back workflow. Ingesting one
+        is catastrophic — it re-applies the LOS factor to already-converted
+        values and its nodata is no longer at any sentinel, so masking goes
+        blind. This exact failure poisoned the first v0.3.1 regeneration run
+        (input: jakarta_velocity_calibrated.tif; forensic signature:
+        reference median exactly 0.00 and std 24.62 x 1.287 = 31.68).
+      - If more than one velocity candidate remains, fail loudly rather than
+        silently picking one.
+
+    Returns (velocity_raw_path, coherence_path_or_None). Discovery is
+    separated from preprocessing so the raw file identities can be
+    fingerprinted for cache validation before deciding whether M1 must run.
+    """
+    # Vocabulary that only pipeline OUTPUTS carry. Raw LiCSBAS exports are
+    # named like 'jakarta_velocity_mmyr.tif' / '<frame>.vel.geo.tif'.
+    PROCESSED_MARKERS = ("calibrated", "aligned", "vertical", "masked",
+                         "reproj", "nodata_masked")
+
+    all_tifs = sorted(
+        f for f in os.listdir(RAW_INSAR_DIR)
+        if f.lower().endswith((".tif", ".tiff"))
+    )
+    if not all_tifs:
+        logger.error("No InSAR files found in data/raw/insar/")
+        sys.exit(1)
+
+    contaminated = [
+        f for f in all_tifs
+        if any(m in f.lower() for m in PROCESSED_MARKERS)
+    ]
+    if contaminated:
+        logger.error(
+            f"REFUSING to run: {len(contaminated)} file(s) in "
+            f"{RAW_INSAR_DIR} carry processed-product names: {contaminated}. "
+            f"These are pipeline outputs (or artifacts of the deprecated "
+            f"calibrate-and-copy-back workflow), NOT raw data. Ingesting "
+            f"one silently corrupts every downstream product — the LOS "
+            f"factor gets applied twice and nodata masking goes blind. "
+            f"Move them out of data/raw/insar/ (e.g. to data/archive/) "
+            f"and keep only the original LiCSBAS export here."
+        )
+        sys.exit(1)
+
+    coh_files = [f for f in all_tifs if "coh" in f.lower()]
+    # Velocity candidates: everything that is not coherence and not synthetic
+    vel_candidates = [
+        f for f in all_tifs
+        if "coh" not in f.lower() and "synthetic" not in f.lower()
+    ]
+
+    if not vel_candidates:
+        logger.error(
+            f"No velocity candidate in {RAW_INSAR_DIR} after excluding "
+            f"coherence/synthetic files. Found: {all_tifs}"
+        )
+        sys.exit(1)
+
+    if len(vel_candidates) > 1:
+        logger.error(
+            f"Ambiguous InSAR velocity input — {len(vel_candidates)} "
+            f"candidates in {RAW_INSAR_DIR}: {vel_candidates}. "
+            f"Leave exactly one velocity GeoTIFF (coherence files may use "
+            f"'coh' in their name and will be auto-detected for masking)."
+        )
+        sys.exit(1)
+
+    vel_raw_path = os.path.join(RAW_INSAR_DIR, vel_candidates[0])
+    coh_path = os.path.join(RAW_INSAR_DIR, coh_files[0]) if coh_files else None
+
+    logger.info(f"  Velocity input: {vel_candidates[0]}")
+    if coh_path:
+        logger.info(f"  Coherence mask: {coh_files[0]}")
+
+    return vel_raw_path, coh_path
+
+
+def validate_cluster_exposure(labels, label_file_path, accept_exposure=False):
+    """
+    Guard against a stale CLUSTER_EXPOSURE assignment.
+
+    Cluster IDs are arbitrary integers: change the method, k, seed, or data
+    and 'cluster 0' becomes a different land cover with no error raised.
+    CLUSTER_EXPOSURE is hand-authored against ONE specific clustering
+    (inspecting landcover_clusters.png), so applying it to any other
+    clustering silently corrupts the risk map's meaning.
+
+    Two checks, run only when CLUSTER_EXPOSURE is non-empty:
+      1. Every exposure key must be a cluster ID that exists in the current
+         labels (hard error otherwise).
+      2. If the labels file differs from the one recorded when
+         pipeline_state.json was last written, the assignment predates the
+         current clustering — hard error unless --accept-exposure is passed
+         (for the case where the analyst has re-inspected and confirmed).
+    """
+    if not CLUSTER_EXPOSURE:
+        return
+
+    current_ids = {int(c) for c in np.unique(labels[labels >= 0])}
+    bad_keys = {int(key) for key in CLUSTER_EXPOSURE} - current_ids
+    if bad_keys:
+        logger.error(
+            f"CLUSTER_EXPOSURE references cluster ID(s) {sorted(bad_keys)} "
+            f"that do not exist in the current clustering "
+            f"(IDs present: {sorted(current_ids)}). The exposure assignment "
+            f"was authored against a different clustering — re-inspect "
+            f"landcover_clusters.png and update CLUSTER_EXPOSURE in "
+            f"config/settings.py."
+        )
+        sys.exit(1)
+
+    if not (label_file_path and os.path.exists(PIPELINE_STATE_FILE)):
+        return
+    try:
+        with open(PIPELINE_STATE_FILE) as fh:
+            prev = json.load(fh).get("config", {}).get(
+                "cluster_labels_identity")
+    except (OSError, json.JSONDecodeError):
+        return
+    if not prev:
+        return
+
+    cur = file_identity(label_file_path)
+    same = (prev.get("path") == cur["path"]
+            and prev.get("size") == cur["size"]
+            and prev.get("mtime_ns") == cur["mtime_ns"])
+    if same:
+        return
+
+    if accept_exposure:
+        logger.warning(
+            "CLUSTER_EXPOSURE was authored against a different clustering "
+            "run than the current labels, but --accept-exposure was passed. "
+            "Proceeding — make sure the assignment was re-verified against "
+            "the CURRENT landcover_clusters.png."
+        )
+        return
+
+    logger.error(
+        "The cluster labels have changed since CLUSTER_EXPOSURE was "
+        "assigned (labels file identity differs from the one recorded in "
+        "pipeline_state.json). Cluster IDs are not stable across runs, so "
+        "the exposure mapping may now point at the wrong land cover types. "
+        "Re-inspect data/output/figures/landcover_clusters.png, update "
+        "CLUSTER_EXPOSURE in config/settings.py if needed, then rerun — or "
+        "pass --accept-exposure if you have verified the current assignment "
+        "is still correct."
+    )
+    sys.exit(1)
 
 
 def save_pipeline_state(paths, config, risk_summary_df):
@@ -193,6 +393,7 @@ def save_pipeline_state(paths, config, risk_summary_df):
             "cluster": int(row["cluster"]),
             "cluster_risk": row["cluster_risk"],
             "total_pixels": int(row["total_pixels"]),
+            "pct_velocity_coverage": float(row.get("pct_velocity_coverage", 100.0)),
             "vel_mean": float(row["vel_mean"]),
             "pct_moderate_or_worse": float(row["pct_moderate_or_worse"]),
             "pct_rapid": float(row["pct_rapid"]),
@@ -367,7 +568,8 @@ def calibrate_velocity_field(label_raster, velocity_path, output_path,
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main(force=False, force_from=None, method="kmeans", k=None,
-         no_k_search=False, no_calibration=False, synthetic=False):
+         no_k_search=False, no_calibration=False, synthetic=False,
+         accept_exposure=False):
     """
     Run the full two-stage pipeline.
 
@@ -388,6 +590,9 @@ def main(force=False, force_from=None, method="kmeans", k=None,
         Skip InSAR velocity calibration.
     synthetic : bool
         Use synthetic InSAR data for testing.
+    accept_exposure : bool
+        Acknowledge that CLUSTER_EXPOSURE has been re-verified against the
+        current clustering (bypasses the stale-exposure guard).
     """
     # ── Setup ────────────────────────────────────────────────────────
     log_file = setup_logging()
@@ -427,21 +632,38 @@ def main(force=False, force_from=None, method="kmeans", k=None,
 
     from src.m2_embedding_extraction import find_embedding_files, preprocess_embeddings
 
-    emb_files = find_embedding_files(RAW_EMBEDDINGS_DIR)
+    # Select by ANALYSIS_YEAR (review finding 1.4): with both years' exports
+    # present, an unfiltered sorted glob silently picks 2020 while the docs
+    # say 2023. Fail loudly if the configured year has no matching file.
+    emb_files = find_embedding_files(RAW_EMBEDDINGS_DIR, year=ANALYSIS_YEAR)
     if not emb_files:
-        logger.error("No embedding files found in data/raw/embeddings/")
+        all_files = find_embedding_files(RAW_EMBEDDINGS_DIR)
+        if all_files:
+            logger.error(
+                f"No embedding file matches ANALYSIS_YEAR={ANALYSIS_YEAR}, "
+                f"but {len(all_files)} embedding file(s) exist. Either fix "
+                f"ANALYSIS_YEAR in config/settings.py or rename/export the "
+                f"correct year's file."
+            )
+        else:
+            logger.error("No embedding files found in data/raw/embeddings/")
         sys.exit(1)
+    logger.info(f"  Analysis year {ANALYSIS_YEAR}: "
+                f"{os.path.basename(emb_files[0])}")
 
-    # Idempotency: check for existing processed embeddings
+    # Idempotency: fingerprint-aware cache (config + raw-file identity)
     raw_basename = os.path.splitext(os.path.basename(emb_files[0]))[0]
     expected_emb = os.path.join(PROC_EMBEDDINGS_DIR, f"{raw_basename}_norm.tif")
-    cached_emb = find_cached(expected_emb, "Processed embeddings", "m2",
-                             force_stages)
+    m2_params = stage_params("m2")
+    cached_emb = check_stage_cache(expected_emb, "Processed embeddings",
+                                   "m2", force_stages, m2_params,
+                                   inputs=[emb_files[0]])
 
     if cached_emb:
         emb_path = cached_emb
     else:
         emb_path = preprocess_embeddings(emb_files[0])
+        write_sidecar(emb_path, m2_params, inputs=[emb_files[0]])
 
     # ── MODULE 1: InSAR Ingestion ────────────────────────────────────
     logger.info("\n" + "─" * 50)
@@ -456,38 +678,42 @@ def main(force=False, force_from=None, method="kmeans", k=None,
         emb_data, emb_profile = load_raster(emb_path)
         h, w = emb_data.shape[1], emb_data.shape[2]
         synth_velocity = generate_synthetic_insar((h, w))
-        synth_path = os.path.join(RAW_INSAR_DIR, "synthetic_velocity.tif")
+        # Write synthetic data to the PROCESSED dir, never RAW — a synthetic
+        # field in data/raw/insar/ can later be silently ingested by a real
+        # run (review finding 1.3).
+        synth_path = os.path.join(PROC_INSAR_DIR, "synthetic_velocity.tif")
+        os.makedirs(PROC_INSAR_DIR, exist_ok=True)
         save_raster(synth_path, synth_velocity, emb_profile, nodata=np.nan)
         vel_path = synth_path
     else:
-        # Idempotency: check for existing reprojected velocity
-        # M1 outputs either velocity_masked.tif (with coherence) or
-        # velocity_reproj.tif (without)
-        cached_vel = (
-            find_cached(
-                os.path.join(PROC_INSAR_DIR, "velocity_masked.tif"),
-                "Masked InSAR velocity", "m1", force_stages,
-            )
-            or find_cached(
-                os.path.join(PROC_INSAR_DIR, "velocity_reproj.tif"),
-                "Reprojected InSAR velocity", "m1", force_stages,
-            )
-        )
+        vel_raw_path, coh_raw_path = _discover_insar_inputs()
+        m1_inputs = [vel_raw_path] + ([coh_raw_path] if coh_raw_path else [])
+
+        # The final M1 product is determined by config, not by whichever
+        # stale file happens to exist (the old fallback chain could e.g.
+        # keep serving velocity_masked.tif after the coherence file was
+        # removed): coherence present -> masked; LOS conversion on ->
+        # vertical; otherwise reproj.
+        if coh_raw_path:
+            expected_vel = os.path.join(PROC_INSAR_DIR, "velocity_masked.tif")
+            m1_label = "Masked InSAR velocity"
+        elif INSAR_VELOCITY_IS_LOS:
+            expected_vel = os.path.join(PROC_INSAR_DIR, "velocity_vertical.tif")
+            m1_label = "Vertical InSAR velocity"
+        else:
+            expected_vel = os.path.join(PROC_INSAR_DIR, "velocity_reproj.tif")
+            m1_label = "Reprojected InSAR velocity"
+
+        m1_params = stage_params("m1")
+        cached_vel = check_stage_cache(expected_vel, m1_label, "m1",
+                                       force_stages, m1_params,
+                                       inputs=m1_inputs)
 
         if cached_vel:
             vel_path = cached_vel
         else:
-            vel_files = [f for f in os.listdir(RAW_INSAR_DIR)
-                         if f.endswith((".tif", ".tiff"))]
-            if not vel_files:
-                logger.error("No InSAR files found in data/raw/insar/")
-                sys.exit(1)
-
-            vel_raw_path = os.path.join(RAW_INSAR_DIR, vel_files[0])
-            coh_files = [f for f in vel_files if "coh" in f.lower()]
-            coh_path = (os.path.join(RAW_INSAR_DIR, coh_files[0])
-                        if coh_files else None)
-            vel_path = preprocess_insar(vel_raw_path, coh_path)
+            vel_path = preprocess_insar(vel_raw_path, coh_raw_path)
+            write_sidecar(vel_path, m1_params, inputs=m1_inputs)
 
     # ── MODULE 3: Data Alignment ─────────────────────────────────────
     logger.info("\n" + "─" * 50)
@@ -497,10 +723,14 @@ def main(force=False, force_from=None, method="kmeans", k=None,
 
     from src.m3_feature_fusion import align_datasets, prepare_embedding_features
 
-    # Idempotency: check for existing aligned velocity
+    # Idempotency: fingerprint-aware — invalidates when either the processed
+    # embeddings or the processed velocity were rebuilt (cascade correctness)
     expected_aligned = os.path.join(PROC_FUSED_DIR, "velocity_aligned.tif")
-    cached_aligned = find_cached(expected_aligned, "Aligned velocity", "m3",
-                                 force_stages)
+    m3_params = stage_params("m3")
+    m3_inputs = [emb_path, vel_path]
+    cached_aligned = check_stage_cache(expected_aligned, "Aligned velocity",
+                                       "m3", force_stages, m3_params,
+                                       inputs=m3_inputs)
 
     if cached_aligned:
         emb_path_aligned = emb_path
@@ -510,6 +740,7 @@ def main(force=False, force_from=None, method="kmeans", k=None,
             embedding_path=emb_path,
             insar_velocity_path=vel_path,
         )
+        write_sidecar(vel_path_aligned, m3_params, inputs=m3_inputs)
 
     # Always prepare embedding features — needed in memory for M4 and M4B
     features, valid_mask, full_features, raster_profile = \
@@ -526,12 +757,46 @@ def main(force=False, force_from=None, method="kmeans", k=None,
 
     from src.m4_clustering import find_optimal_k, cluster_embeddings
 
-    # Idempotency: check for existing cluster labels matching current method
-    label_pattern = os.path.join(
-        OUT_CLUSTERS_DIR, f"landcover_clusters_{method}_*.tif"
+    # Idempotency (review finding 2.1): the cache must honor the requested
+    # k, not lexicographic luck. The fingerprint includes method and the
+    # resolved k request ('auto-search' when k comes from the search), plus
+    # the identity of the normalized embeddings the labels were fit on.
+    m4_params = stage_params(
+        "m4", method=method,
+        k=(best_k if best_k is not None else "auto-search"),
     )
-    cached_labels = find_cached(label_pattern, "Cluster labels", "m4",
-                                force_stages)
+    m4_inputs = [emb_path_aligned]
+
+    cached_labels = None
+    if "m4" in force_stages:
+        logger.info("  [forced] Cluster labels — reprocessing")
+    else:
+        if best_k is not None:
+            candidates = [os.path.join(
+                OUT_CLUSTERS_DIR,
+                f"landcover_clusters_{method}_k{best_k}.tif",
+            )]
+        else:
+            # k unknown until search: consider every file for this method,
+            # newest first, and accept only one whose sidecar fingerprint
+            # matches the current auto-search configuration.
+            candidates = sorted(
+                glob.glob(os.path.join(
+                    OUT_CLUSTERS_DIR, f"landcover_clusters_{method}_*.tif"
+                )),
+                key=os.path.getmtime, reverse=True,
+            )
+        for cand in candidates:
+            hit, reason = cache_valid(cand, m4_params, inputs=m4_inputs)
+            if hit:
+                cached_labels = cand
+                size_mb = os.path.getsize(cand) / 1e6
+                logger.info(f"  [cached] Cluster labels: "
+                            f"{os.path.basename(cand)} ({size_mb:.1f} MB)")
+                break
+            logger.info(f"  [skip] {os.path.basename(cand)} — {reason}")
+        if not cached_labels:
+            logger.info("  [recompute] Cluster labels — no valid cache")
 
     if cached_labels:
         import rasterio
@@ -556,6 +821,18 @@ def main(force=False, force_from=None, method="kmeans", k=None,
             "n_valid_pixels": int((labels >= 0).sum()),
             "note": f"loaded from cache: {os.path.basename(cached_labels)}",
         }
+        # Review finding 2.5: quality metrics used to be dropped from the
+        # report on cached runs. They are persisted in the cache sidecar —
+        # reload them so --force-from m4b reports keep silhouette/DB.
+        try:
+            with open(cached_labels + ".cachemeta.json") as fh:
+                persisted = json.load(fh).get("extra", {}).get("metrics", {})
+            for key in ("silhouette", "davies_bouldin",
+                        "requested_method", "used_method"):
+                if key in persisted:
+                    metrics[key] = persisted[key]
+        except (OSError, json.JSONDecodeError):
+            pass
         logger.info(f"  Loaded {n_clusters} clusters, "
                     f"{metrics['n_valid_pixels']:,} valid pixels")
 
@@ -578,15 +855,25 @@ def main(force=False, force_from=None, method="kmeans", k=None,
             method=method,
             n_clusters=best_k,
         )
+        write_sidecar(
+            metrics["label_path"], m4_params, inputs=m4_inputs,
+            extra={"metrics": {
+                k_: v_ for k_, v_ in metrics.items()
+                if k_ in ("silhouette", "davies_bouldin", "n_clusters",
+                          "n_valid_pixels", "requested_method",
+                          "used_method")
+            }},
+        )
 
-    # Resolve the label file path for pipeline state
+    # Resolve the label file path for pipeline state. Use the path the
+    # clustering step actually wrote — the previous sorted(glob)[-1] was
+    # lexicographic ('k12' < 'k4'), so pipeline_state could record a
+    # DIFFERENT clustering than the one this run produced, sending
+    # sub-clustering to stale labels.
     if cached_labels:
         label_file_path = cached_labels
     else:
-        label_files = sorted(glob.glob(os.path.join(
-            OUT_CLUSTERS_DIR, f"landcover_clusters_{method}_*.tif"
-        )))
-        label_file_path = label_files[-1] if label_files else None
+        label_file_path = metrics["label_path"]
 
     # ── CALIBRATION: Velocity Bias Correction ────────────────────────
     if not no_calibration and not synthetic:
@@ -597,8 +884,17 @@ def main(force=False, force_from=None, method="kmeans", k=None,
 
         vel_calibrated_path = os.path.join(PROC_FUSED_DIR,
                                            "velocity_calibrated.tif")
-        cached_cal = find_cached(vel_calibrated_path, "Calibrated velocity",
-                                 "cal", force_stages)
+        # Review finding 2.2: the calibration cache must be tied to the
+        # cluster labels it was computed against. The labels raster is a
+        # fingerprinted input, so switching --method (or any change that
+        # rewrites the labels file) invalidates this cache instead of
+        # silently calibrating new clusters against the old reference.
+        cal_params = stage_params("cal")
+        cal_inputs = [p for p in (label_file_path, vel_path_aligned) if p]
+        cached_cal = check_stage_cache(vel_calibrated_path,
+                                       "Calibrated velocity", "cal",
+                                       force_stages, cal_params,
+                                       inputs=cal_inputs)
 
         if cached_cal:
             vel_for_overlay = cached_cal
@@ -610,12 +906,19 @@ def main(force=False, force_from=None, method="kmeans", k=None,
                     output_path=vel_calibrated_path,
                     figures_dir=OUT_FIGURES_DIR,
                 )
+            if vel_for_overlay == vel_calibrated_path:
+                write_sidecar(vel_calibrated_path, cal_params,
+                              inputs=cal_inputs)
     else:
         vel_for_overlay = vel_path_aligned
         if synthetic:
             logger.info("Skipping calibration (synthetic data).")
         else:
             logger.info("Skipping calibration (--no-calibration).")
+
+    # ── Exposure guard: refuse stale CLUSTER_EXPOSURE assignments ────
+    validate_cluster_exposure(labels, label_file_path,
+                              accept_exposure=accept_exposure)
 
     # ── MODULE 4B: Stage 2 — InSAR Overlay ───────────────────────────
     logger.info("\n" + "─" * 50)
@@ -683,10 +986,20 @@ def main(force=False, force_from=None, method="kmeans", k=None,
             "report": report_path,
         },
         config={
-            "method": method,
+            # Review finding 2.4: record the method that actually produced
+            # the labels (e.g. kmeans after an HDBSCAN fallback), preserving
+            # what was requested separately.
+            "method": metrics.get("used_method", method),
+            "requested_method": metrics.get("requested_method", method),
             "n_clusters": int(metrics.get("n_clusters", 0)),
             "calibrated": not no_calibration and not synthetic,
             "synthetic": synthetic,
+            # Identity of the labels file this run's risk products are built
+            # on — used to detect stale CLUSTER_EXPOSURE assignments.
+            "cluster_labels_identity": (
+                file_identity(label_file_path) if label_file_path
+                and os.path.exists(label_file_path) else None
+            ),
         },
         risk_summary_df=overlay_results["risk_summary"],
     )
@@ -775,6 +1088,11 @@ if __name__ == "__main__":
         "--synthetic", action="store_true",
         help="Use synthetic InSAR data (for pipeline testing).",
     )
+    parser.add_argument(
+        "--accept-exposure", action="store_true",
+        help="Acknowledge CLUSTER_EXPOSURE was re-verified against the "
+             "CURRENT clustering (bypasses the stale-exposure guard).",
+    )
 
     args = parser.parse_args()
     main(
@@ -785,4 +1103,5 @@ if __name__ == "__main__":
         no_k_search=args.no_k_search,
         no_calibration=args.no_calibration,
         synthetic=args.synthetic,
+        accept_exposure=args.accept_exposure,
     )

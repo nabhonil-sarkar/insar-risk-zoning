@@ -341,7 +341,9 @@ def plot_spatial_map(labels_raster, target_cluster, target_mask,
 
     # Plot
     n_colors = max_id + 1 + k + 1
-    cmap = plt.cm.get_cmap("tab10", n_colors)
+    # plt.cm.get_cmap(name, n) was removed in matplotlib 3.9; the colormap
+    # registry + .resampled() is available from 3.6 onward.
+    cmap = matplotlib.colormaps["tab10"].resampled(n_colors)
     masked = np.ma.masked_where(refined == -1, refined)
 
     fig, ax = plt.subplots(figsize=(14, 10))

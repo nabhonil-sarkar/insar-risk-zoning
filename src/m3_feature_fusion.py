@@ -24,6 +24,7 @@ from src.utils.geo_utils import (
 from config.settings import (
     PROC_FUSED_DIR, RANDOM_STATE,
     MAX_CLUSTERING_SAMPLES, SAMPLE_FRACTION,
+    INSAR_RESAMPLING,
 )
 
 
@@ -57,7 +58,11 @@ def align_datasets(embedding_path, insar_velocity_path, output_dir=None):
 
     # Align InSAR velocity to the embedding grid
     aligned_vel_path = os.path.join(output_dir, "velocity_aligned.tif")
-    align_rasters(embedding_path, insar_velocity_path, aligned_vel_path)
+    # Same rationale as M1: the velocity grid is far coarser than the 30 m
+    # embedding grid, so interpolation would fabricate sub-measurement
+    # gradients. INSAR_RESAMPLING defaults to 'nearest'.
+    align_rasters(embedding_path, insar_velocity_path, aligned_vel_path,
+                  resampling=INSAR_RESAMPLING)
 
     return embedding_path, aligned_vel_path
 

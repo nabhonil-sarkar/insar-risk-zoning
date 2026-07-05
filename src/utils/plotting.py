@@ -50,7 +50,7 @@ def plot_cluster_map(label_raster, transform, title="Cluster Map",
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=200, bbox_inches="tight")
         print(f"Saved figure: {save_path}")
-    plt.show()
+    plt.close()
 
 
 def plot_cluster_profiles(features, labels, feature_names=None,
@@ -101,7 +101,7 @@ def plot_cluster_profiles(features, labels, feature_names=None,
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=200, bbox_inches="tight")
         print(f"Saved figure: {save_path}")
-    plt.show()
+    plt.close()
 
 
 def plot_subsidence_by_cluster(subsidence_values, labels,
@@ -127,8 +127,11 @@ def plot_subsidence_by_cluster(subsidence_values, labels,
         tick_labels.append(f"C{label}\n(n={len(vals):,})")
 
     fig, ax = plt.subplots(figsize=(12, 6))
-    bp = ax.boxplot(data_by_cluster, labels=tick_labels, patch_artist=True,
+    # `labels=` was deprecated in matplotlib 3.9 (renamed tick_labels);
+    # setting via set_xticklabels works on every version.
+    bp = ax.boxplot(data_by_cluster, patch_artist=True,
                     showfliers=False, medianprops=dict(color="black", linewidth=2))
+    ax.set_xticklabels(tick_labels)
 
     colors = plt.cm.tab10(np.linspace(0, 1, len(unique_labels)))
     for patch, color in zip(bp["boxes"], colors):
@@ -145,7 +148,7 @@ def plot_subsidence_by_cluster(subsidence_values, labels,
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=200, bbox_inches="tight")
         print(f"Saved figure: {save_path}")
-    plt.show()
+    plt.close()
 
 
 def plot_elbow_silhouette(k_values, inertias, silhouettes, save_path=None):
@@ -183,7 +186,7 @@ def plot_elbow_silhouette(k_values, inertias, silhouettes, save_path=None):
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=200, bbox_inches="tight")
         print(f"Saved figure: {save_path}")
-    plt.show()
+    plt.close()
 
 
 def plot_rgb_embedding(data, bands=(0, 15, 8), vmin=-0.3, vmax=0.3,
@@ -211,4 +214,4 @@ def plot_rgb_embedding(data, bands=(0, 15, 8), vmin=-0.3, vmax=0.3,
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=200, bbox_inches="tight")
         print(f"Saved figure: {save_path}")
-    plt.show()
+    plt.close()

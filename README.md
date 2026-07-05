@@ -1,221 +1,155 @@
-# InSAR-Informed Subsidence Risk Zoning
+# InSAR Subsidence Risk Zoning
 
-Two-stage discovery of subsidence risk zones by combining **InSAR displacement data** with **Google AlphaEarth Satellite Embeddings** — without fusing them.
+Mapping ground-subsidence risk in Jakarta by combining satellite radar
+interferometry (InSAR) with learned land-cover representations (Google
+AlphaEarth embeddings).
 
-## Overview
+Parts of northern Jakarta are sinking by more than 10 cm/year, driven mainly by
+groundwater extraction. Displacement maps alone don't answer the planning
+question, because risk depends on what sits on the sinking ground: the same
+rate under a dense neighbourhood and under farmland are different problems.
+This pipeline produces risk zones that account for both.
 
-This project combines two independent satellite-derived views of the Earth's surface to map urban subsidence risk:
+## Approach
 
-- **AlphaEarth Embeddings** encode *what's on the surface* — 64-dimensional learned representations of land cover, vegetation phenology, and built environment from Google's foundation model at 10 m resolution.
-- **InSAR (Interferometric SAR)** measures *how fast the ground is moving* — displacement velocity in mm/year from Sentinel-1, processed via LiCSBAS. Line-of-sight velocities are projected to vertical rates during ingestion (v_vert = v_LOS / cos θ, assuming predominantly vertical deformation — appropriate for groundwater-driven subsidence).
-
-The key methodological choice: these two datasets are **never combined into a single feature space**. Unsupervised clustering operates on embeddings alone to discover land cover types, then InSAR velocity is overlaid independently onto each cluster to characterize subsidence severity. This two-stage separation avoids the dimensionality imbalance where 64 embedding dimensions would dominate 1 velocity dimension in any distance-based algorithm.
-
-The result is a risk map that captures both *what is on the surface* and *how fast it is sinking*, without either signal contaminating the other.
-
-## Study Area
-
-**Jakarta Metropolitan Area, Indonesia** — one of the most rapidly subsiding cities in the world, with documented rates reaching 10–25 cm/year in parts of North Jakarta, driven primarily by excessive groundwater extraction from deep aquifers. The study area covers approximately 85 × 59 km (106.45°E–107.22°E, 6.54°S–6.01°S).
-
-## Pipeline Architecture
+Two independent satellite datasets, deliberately **never fused** into one
+feature space:
 
 ```
-M2 Embeddings ──→ M3 Alignment ──→ M4 Clustering ──→ Calibration ──→ M4B Overlay ──→ M5 Risk
-M1 InSAR ─────────────┘                                    │
-                                                            ↓
-                                                     Sub-clustering
+Stage 1   AlphaEarth embeddings (64-D, 30 m)  ──▶  K-Means  ──▶  land-cover clusters
+                                                                  (no InSAR involved)
+Stage 2   Sentinel-1 InSAR velocity (mm/yr)   ──▶  calibrated, overlaid per cluster
+                                                                  ──▶  subsidence severity
+
+Risk  =  severity × exposure   (per-cluster exposure via an explicit lookup matrix)
 ```
 
-| Module | File | Purpose |
-|--------|------|---------|
-| Config | `config/settings.py` | All tunable parameters in one place |
-| M1 | `src/m1_insar_ingestion.py` | Load, reproject, coherence-mask InSAR velocity |
-| M2 | `src/m2_embedding_extraction.py` | Load, reproject, normalize AlphaEarth embeddings |
-| M3 | `src/m3_feature_fusion.py` | Align grids (no fusion — datasets stay separate) |
-| M4 | `src/m4_clustering.py` | K-Means / GMM / HDBSCAN on embeddings only |
-| Cal | `run_full_pipeline.py` | Auto-calibrate velocity bias using cluster labels |
-| M4B | `src/m4b_insar_overlay.py` | Velocity stats + severity per cluster, risk matrix |
-| M5 | `src/m5_risk_interpretation.py` | Risk zones, vectorization, report, figures |
-| Sub | `scripts/subcluster_analysis.py` | Split high-risk clusters into sub-populations |
+The obvious alternative — concatenating the 64 embedding dimensions with the
+1 velocity dimension and clustering the 65-D space — lets the embeddings drown
+the velocity signal in any distance-based algorithm, regardless of weighting.
+Keeping the stages separate means land cover is discovered on its own terms and
+velocity remains a physically interpretable overlay. A side benefit surfaced in
+practice: when a corrupted velocity file entered the pipeline, the clustering
+was unaffected, because InSAR never touches Stage 1.
 
-## Quick Start
+**Study area:** Jakarta metropolitan area, ~85 × 59 km. **Scale:** 5.6 M valid
+pixels at 30 m; InSAR from 4 years of Sentinel-1 acquisitions (LiCSBAS SBAS
+inversion, ~1 km effective resolution).
+
+## Design notes
+
+Decisions that shaped the implementation, with the reasoning:
+
+- **Fingerprint-validated caching.** Every expensive stage writes a sidecar
+  recording a hash of the settings it depends on, its resolved CLI parameters,
+  and the identity (size + mtime) of each input file. A cached output is reused
+  only if all three match; any mismatch logs the changed key and recomputes.
+  Plain existence-checking had already caused silent reuse of stale results —
+  e.g. a `--k 4` run picking up a six-cluster file.
+
+- **Fail loudly on suspicious input.** The ingestion refuses to run if the raw
+  data directory contains files with processed-product names (`calibrated`,
+  `aligned`, `masked`, …), if more than one velocity candidate exists, or if a
+  "raw" coastal file contains implausibly little nodata. Each guard corresponds
+  to a failure mode that actually occurred or nearly did.
+
+- **Geodesy handled explicitly.** Line-of-sight velocities are projected to
+  vertical (v / cos θ, ~1.29× at this frame's incidence angle) before any
+  thresholding; conversion state is stamped into GeoTIFF tags so a file's units
+  are never ambiguous. Nodata is masked to NaN *before* resampling, and the
+  ~1 km InSAR product is placed on the 30 m grid with nearest-neighbour
+  resampling — interpolation would manufacture values that were never measured.
+
+- **Calibration with self-checks.** InSAR velocities are relative; the pipeline
+  anchors them by identifying the most internally consistent land-cover cluster
+  as the stable reference. Because a low-variance cluster could itself be
+  deforming, the calibration warns when the shift exceeds a configurable bound
+  and reports the spread across the top reference candidates as an explicit
+  uncertainty.
+
+- **Classification that cannot fail silently.** Severity bins are half-open
+  intervals covering the entire real line, pixels start unclassified rather
+  than defaulting to "stable", and the classifier raises if any finite velocity
+  escapes the bins. An earlier version classified the fastest-sinking pixels
+  (< −100 mm/yr) as stable because of a gap in the bins; the regression test
+  for that exact case is in the suite.
+
+- **Coverage reported alongside risk.** Per-cluster statistics use only pixels
+  with valid velocity and publish the coverage percentage, so a cluster rated
+  from 3% coverage (open water, where InSAR decorrelates) is visibly
+  distinguishable from one rated from 95%.
+
+## Current status
+
+Honest assessment as of v0.3.1: the pipeline machinery is sound, and the
+per-cluster medians tell a physically coherent story (the dense-urban cluster
+at −17 mm/yr, the stable reference at ~0). But **pixel-level severity is
+currently noise-limited** — the source LiCSBAS run used a relaxed noise
+threshold to preserve coverage under tropical decorrelation, and the resulting
+per-pixel scatter (σ ≈ 40 mm/yr) exceeds the ±25 mm/yr classification
+thresholds. The observed severity distribution is reproduced by a single
+Gaussian to within a percentage point per class, which is the statistical way
+of saying the per-pixel map currently classifies noise.
+
+In progress: re-running the LiCSBAS inversion to export the velocity-uncertainty
+layer (`vstd`), then masking pixels whose uncertainty exceeds the classification
+thresholds (`notebooks/LiCSBAS_Jakarta_vstd_rerun.ipynb`). Planned next:
+validation against published GNSS/levelling benchmarks for Jakarta, and deriving
+cluster exposure from building-density data instead of manual assignment.
+
+## Quick start
 
 ```bash
-# 1. Clone and install
-git clone <repo-url>
-cd insar-risk-zoning
 pip install -r requirements.txt
 
-# 2. Authenticate with Earth Engine (once)
-earthengine authenticate
+# place inputs:
+#   data/raw/embeddings/  <- AlphaEarth annual export (see scripts/export_embeddings.py)
+#   data/raw/insar/       <- one LiCSBAS velocity GeoTIFF
 
-# 3. Export embeddings from GEE to Google Drive
-python scripts/export_embeddings.py
-
-# 4. Download the GeoTIFFs from Drive into data/raw/embeddings/
-#    Place InSAR velocity GeoTIFF in data/raw/insar/
-
-# 5. Run the pipeline
-python scripts/run_full_pipeline.py
+python scripts/run_full_pipeline.py            # full run; later runs reuse valid caches
+python -m pytest tests/                        # test suite
 ```
 
-The pipeline will preprocess both datasets, cluster the embeddings, auto-calibrate the InSAR velocity, overlay subsidence statistics per cluster, and generate risk zones, figures, and a report.
-
-## CLI Reference
-
-The pipeline exposes all key parameters as command-line flags — no code edits needed to experiment:
-
-```bash
-# Default run (skips cached steps automatically)
-python scripts/run_full_pipeline.py
-
-# Reprocess everything from scratch
-python scripts/run_full_pipeline.py --force
-
-# Reprocess from clustering onward (keeps M1/M2/M3 cached)
-python scripts/run_full_pipeline.py --force-from m4
-
-# Just recalibrate and regenerate outputs
-python scripts/run_full_pipeline.py --force-from cal
-
-# Try GMM with 6 clusters instead of k-search
-python scripts/run_full_pipeline.py --method gmm --k 6
-
-# Try HDBSCAN (auto-falls back to K-Means if results are unusable)
-python scripts/run_full_pipeline.py --method hdbscan
-
-# Skip velocity calibration (if InSAR data is already bias-corrected)
-python scripts/run_full_pipeline.py --no-calibration
-
-# Test the pipeline without real InSAR data
-python scripts/run_full_pipeline.py --synthetic
-```
-
-**Stage cascade for `--force-from`** (forces the named stage + everything downstream):
-```
-m2 → m1 → m3 → m4 → cal → m4b → m5
-```
-
-## Sub-clustering
-
-After the main pipeline, the sub-clustering script can further divide the highest-risk cluster into sub-populations:
-
-```bash
-# Auto-selects highest-risk cluster from pipeline state
-python scripts/subcluster_analysis.py
-
-# Override target cluster or sub-k
-python scripts/subcluster_analysis.py --cluster 2 --sub-k 3
-```
-
-This reads `pipeline_state.json` (written by the main pipeline) to discover file paths and risk levels — no hardcoded paths.
-
-## Key Design Decisions
-
-**Two-stage separation.** Clustering on embeddings alone, then overlaying InSAR, avoids dimensionality imbalance and ensures scientific defensibility. Neither dataset contaminates the other.
-
-**Exposure-weighted risk.** Risk combines per-pixel subsidence severity with a per-cluster exposure level (low/medium/high) via an explicit severity × exposure lookup matrix (`EXPOSURE_RISK_MATRIX` in `config/settings.py`). The same −30 mm/yr is a higher risk under dense urban fabric than on unbuilt land. Because clusters are unsupervised, exposure is assigned by the analyst: run the pipeline, inspect `figures/landcover_clusters.png` and the per-cluster velocity stats, set `CLUSTER_EXPOSURE` in settings (e.g. `{0: "high", 1: "low"}`), then rerun with `--force-from m4b`. With no exposure assigned, all clusters default to medium, which reduces exactly to a severity-only mapping.
-
-**Auto-calibration with sanity checks.** InSAR velocities are relative to an arbitrary reference point. The pipeline identifies the most stable land cover cluster (lowest velocity standard deviation) and shifts the entire field so stable areas read ~0 mm/yr. Two guards back this up: a warning if the shift magnitude exceeds `CALIBRATION_MAX_SHIFT` (the "stable" cluster may itself be deforming uniformly), and a sensitivity report comparing the top reference candidates — if their medians disagree beyond `CALIBRATION_CANDIDATE_TOLERANCE`, the spread is flagged as calibration uncertainty.
-
-**Idempotency.** Each expensive step (reprojection, alignment, clustering) checks for existing output before running. Subsequent runs skip completed work automatically. Use `--force` or `--force-from` to override.
-
-**HDBSCAN safety net.** HDBSCAN is O(n²) and can produce >50% noise on large datasets. The pipeline caps fitting at 50K samples, uses PCA dimensionality reduction, and auto-falls back to K-Means if HDBSCAN produces unusable results (too much noise or too few clusters).
-
-**Centralized configuration.** Every tunable parameter lives in `config/settings.py` — subsidence thresholds, coherence masking, clustering hyperparameters, HDBSCAN safety limits, file paths. Nothing is hardcoded in module code.
-
-## Outputs
-
-After a full pipeline run, outputs are organized under `data/output/`:
+Useful flags:
 
 ```
-data/output/
-├── clusters/
-│   ├── landcover_clusters_kmeans_k4.tif    # Cluster label raster
-│   ├── subsidence_severity.tif             # Per-pixel severity classification
-│   ├── combined_landcover_subsidence.tif   # Cluster × severity labels
-│   ├── cluster_velocity_stats.csv          # Velocity stats per cluster
-│   └── risk_matrix.csv                     # Cluster × severity pixel counts
-├── risk_maps/
-│   ├── risk_zones.tif                      # Risk zone raster (1-4 encoding)
-│   ├── risk_zones.gpkg                     # Vectorized risk polygons
-│   └── analysis_report.txt                 # Full text report
-├── figures/
-│   ├── k_search.png                        # Elbow + silhouette plots
-│   ├── calibration_comparison.png          # Before/after velocity histograms
-│   ├── landcover_clusters.png              # Cluster map
-│   ├── velocity_per_cluster.png            # Box plots
-│   ├── velocity_histograms.png             # Per-cluster distributions
-│   └── risk_matrix_heatmap.png             # Risk matrix visualization
-├── logs/
-│   └── pipeline_20260609_143000.log        # Timestamped run log
-└── pipeline_state.json                     # Machine-readable pipeline state
+--force                 recompute everything
+--force-from STAGE      recompute a stage and everything downstream
+                        (m2 → m1 → m3 → m4 → cal → m4b → m5)
+--method {kmeans,gmm,hdbscan}   clustering algorithm (HDBSCAN auto-falls back
+                                to K-Means if it produces unusable results)
+--k N                   fixed cluster count (skips the silhouette search)
+--synthetic             synthetic InSAR, for exercising the pipeline without data
 ```
 
-## Data Sources
+Outputs land in `data/output/`: cluster and severity rasters, risk-zone raster
+and vector (GeoPackage), per-cluster statistics (CSV), figures, a text report,
+a timestamped log, and `pipeline_state.json` — a machine-readable record of
+paths, configuration and per-cluster results consumed by the downstream
+sub-clustering tool.
 
-| Dataset | Source | Resolution | License |
-|---------|--------|------------|---------|
-| AlphaEarth Embeddings | `GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL` via GEE | 30 m (native 10 m) | CC-BY 4.0 |
-| InSAR Velocity | COMET-LiCSAR / LiCSBAS | ~1 km (10× multi-look) | Open |
-| SAR Data | Sentinel-1 (ESA Copernicus) | ~5 m (IW SLC) | Open |
+## Data
 
-## Limitations
+| Dataset | Source | Resolution |
+|---|---|---|
+| InSAR velocity | Sentinel-1 via COMET-LiCSAR, LiCSBAS SBAS inversion | ~1 km |
+| Land-cover embeddings | Google AlphaEarth (`GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL`), Earth Engine | 30 m (native 10 m) |
 
-- **Single LOS geometry.** Vertical rates are derived from one descending Sentinel-1 track under a purely-vertical-deformation assumption (incidence angle configurable via `INSAR_INCIDENCE_ANGLE_DEG`; replace the mid-swath default with the frame-specific value from LiCSAR metadata). Ascending + descending decomposition would separate vertical and horizontal motion rigorously.
-- **Relative velocities.** Calibration anchors the field to the most stable cluster, not to GNSS ground truth; the candidate-spread warning quantifies sensitivity to that choice.
-- **Resolution mismatch.** Embeddings (10–30 m) are far finer than the multi-looked InSAR velocity (~1 km), so severity boundaries inherit InSAR's coarser footprint.
-- **Severity thresholds** are half-open bins in vertical mm/yr covering the entire real line; boundary values belong to the milder class, and uplift > +2 mm/yr is folded into "stable" (reported separately).
-
-## Project Structure
+## Repository layout
 
 ```
-insar-risk-zoning/
-├── config/
-│   └── settings.py                 # All parameters centralized here
-├── src/
-│   ├── m1_insar_ingestion.py       # InSAR preprocessing
-│   ├── m2_embedding_extraction.py  # Embedding preprocessing
-│   ├── m3_feature_fusion.py        # Grid alignment (no fusion)
-│   ├── m4_clustering.py            # Unsupervised clustering
-│   ├── m4b_insar_overlay.py        # InSAR analysis per cluster
-│   ├── m5_risk_interpretation.py   # Risk zones + visualization
-│   └── utils/
-│       ├── geo_utils.py            # Raster I/O, reprojection, alignment
-│       ├── plotting.py             # Matplotlib figure utilities
-│       └── validation.py           # Clustering quality metrics
-├── scripts/
-│   ├── run_full_pipeline.py        # Main pipeline entry point
-│   ├── subcluster_analysis.py      # Post-pipeline sub-clustering
-│   ├── export_embeddings.py        # Earth Engine export
-│   └── calibrate_velocity.py       # Standalone calibration (ad-hoc use)
-├── tests/
-│   ├── test_clustering.py
-│   ├── test_severity.py
-│   └── test_alignment.py
-├── data/                           # Created by ensure_dirs(), gitignored
-│   ├── raw/
-│   ├── processed/
-│   └── output/
-├── docs/
-│   └── InSAR_Subsidence_Risk_Zoning_Methodology.docx
-├── requirements.txt
-├── README.md
-└── CHANGELOG.md
+config/settings.py        every tunable parameter, fingerprint-tracked
+src/m1 … m5               ingestion → alignment → clustering → overlay → risk
+src/utils/stage_cache.py  cache fingerprinting
+scripts/run_full_pipeline.py
+scripts/subcluster_analysis.py   splits the highest-risk cluster into sub-populations
+notebooks/                LiCSBAS processing (Colab)
+tests/                    severity classifier, alignment, cache invalidation
+docs/                     methodology document
 ```
-
-## Requirements
-
-Python 3.10+ with the following packages (see `requirements.txt`):
-
-- `earthengine-api`, `geemap` — Earth Engine access for embedding export
-- `rasterio`, `geopandas`, `shapely` — geospatial I/O and vector operations
-- `scikit-learn`, `hdbscan` — clustering algorithms and evaluation
-- `numpy`, `pandas` — numerical computation
-- `matplotlib`, `folium` — visualization
 
 ## License
 
-Copyright © 2026 Nabhonil Sarkar. All rights reserved.
-
-This code is provided for reference and evaluation purposes only. No license is granted for use, modification, or distribution. For licensing or commercial inquiries, please contact the author.
+Copyright © 2026 Nabhonil Sarkar. All rights reserved. Provided for reference
+and evaluation; no license is granted for use, modification or distribution.
+For licensing or other inquiries, please get in touch.

@@ -197,8 +197,13 @@ def generate_report(cluster_stats, risk_matrix, risk_summary, metrics,
     ]
     for _, row in risk_summary.iterrows():
         lines.append(f"  Cluster {int(row['cluster'])}: {row['cluster_risk'].upper()} RISK")
-        lines.append(f"    Moderate+ subsidence: {row['pct_moderate_or_worse']}% of pixels")
-        lines.append(f"    Rapid subsidence: {row['pct_rapid']}% of pixels")
+        lines.append(f"    Moderate+ subsidence: {row['pct_moderate_or_worse']}% of valid-velocity pixels")
+        lines.append(f"    Rapid subsidence: {row['pct_rapid']}% of valid-velocity pixels")
+        # Coverage flags clusters whose risk is based on sparse InSAR data.
+        if "pct_velocity_coverage" in row:
+            lines.append(f"    Velocity coverage: {row['pct_velocity_coverage']}% "
+                         f"({int(row['classified_pixels']):,}/"
+                         f"{int(row['total_pixels']):,} pixels)")
         lines.append("")
 
     lines += ["=" * 70]
@@ -254,8 +259,11 @@ def generate_all_figures(labels, velocity_flat, severity, severity_names,
         risk_str = risk[0].upper() if len(risk) > 0 else "?"
         tick_labels.append(f"C{c}\n{risk_str}\n(n={len(vals):,})")
 
-    bp = ax.boxplot(data_by_cluster, labels=tick_labels, patch_artist=True,
+    # `labels=` was deprecated in matplotlib 3.9 (renamed tick_labels);
+    # setting via set_xticklabels works on every version.
+    bp = ax.boxplot(data_by_cluster, patch_artist=True,
                     showfliers=False, medianprops=dict(color="black", linewidth=2))
+    ax.set_xticklabels(tick_labels)
 
     colors = plt.cm.tab10(np.linspace(0, 1, n_clusters))
     for patch, color in zip(bp["boxes"], colors):

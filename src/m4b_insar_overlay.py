@@ -236,13 +236,19 @@ def build_risk_matrix(labels, severity, velocity_flat, severity_names,
             col.append(count)
         matrix_data[sev_name] = col
 
+    # Count matrix rows sum over severity classes 0..N only, so the "total"
+    # here is the number of VALID-VELOCITY pixels per cluster (severity == -1
+    # pixels are not in any severity column). Percentages are therefore
+    # share-of-valid-velocity — consistent with the risk_summary denominator
+    # (review finding 1.5 / 4.3). Named explicitly to avoid confusion with
+    # total cluster pixels.
     risk_matrix = pd.DataFrame(matrix_data, index=[f"Cluster_{c}" for c in range(n_clusters)])
-    risk_matrix["total"] = risk_matrix.sum(axis=1)
+    risk_matrix["classified_total"] = risk_matrix.sum(axis=1)
 
-    # Add percentage columns
+    # Add percentage columns (share of valid-velocity pixels)
     for sev_name in severity_names.values():
         risk_matrix[f"{sev_name}_pct"] = (
-            risk_matrix[sev_name] / risk_matrix["total"] * 100
+            risk_matrix[sev_name] / risk_matrix["classified_total"] * 100
         ).round(1)
 
     print("\n=== Risk Matrix (pixel counts) ===\n")
@@ -252,25 +258,49 @@ def build_risk_matrix(labels, severity, velocity_flat, severity_names,
     rows = []
     for c in range(n_clusters):
         cluster_mask = labels == c
-        vel = velocity_flat[cluster_mask & ~np.isnan(velocity_flat) & (velocity_flat != 0)]
-
-        total = cluster_mask.sum()
-        if total == 0:
+        total_pixels = int(cluster_mask.sum())
+        if total_pixels == 0:
             continue
 
-        n_moderate = int(((labels == c) & (severity >= 2)).sum())
-        n_rapid = int(((labels == c) & (severity >= 3)).sum())
+        # Denominator for subsidence prevalence must be pixels with a VALID
+        # velocity classification (severity >= 0), NOT all cluster pixels
+        # (review finding 1.5). Using all pixels conflates subsidence
+        # prevalence with InSAR coverage: a heavily subsiding cluster with
+        # poor coherence would be silently under-rated. This also aligns the
+        # risk_summary denominator with the risk_matrix, which already
+        # excludes severity == -1.
+        classified = (labels == c) & (severity >= 0)
+        n_classified = int(classified.sum())
+
+        vel = velocity_flat[cluster_mask & ~np.isnan(velocity_flat) & (velocity_flat != 0)]
+
+        n_moderate = int((classified & (severity >= 2)).sum())
+        n_rapid = int((classified & (severity >= 3)).sum())
+
+        if n_classified > 0:
+            pct_moderate = round(n_moderate / n_classified * 100, 1)
+            pct_rapid = round(n_rapid / n_classified * 100, 1)
+        else:
+            # Cluster has no valid-velocity pixels at all — cannot assess
+            # subsidence. Report zero prevalence and 0% coverage; the risk
+            # level falls through to "low" but the coverage column makes the
+            # absence of data explicit rather than implying stability.
+            pct_moderate = 0.0
+            pct_rapid = 0.0
 
         row = {
             "cluster": c,
-            "total_pixels": int(total),
+            "total_pixels": total_pixels,
+            "classified_pixels": n_classified,
+            "pct_velocity_coverage": round(n_classified / total_pixels * 100, 1),
             "vel_mean": round(float(vel.mean()), 2) if len(vel) > 0 else 0,
             "vel_median": round(float(np.median(vel)), 2) if len(vel) > 0 else 0,
-            "pct_moderate_or_worse": round(n_moderate / total * 100, 1),
-            "pct_rapid": round(n_rapid / total * 100, 1),
+            "pct_moderate_or_worse": pct_moderate,
+            "pct_rapid": pct_rapid,
         }
 
-        # Assign overall cluster risk level based on proportion of subsiding pixels
+        # Assign overall cluster risk level based on the proportion of
+        # VALID-VELOCITY pixels exhibiting subsidence.
         if row["pct_rapid"] > 20:
             row["cluster_risk"] = "very_high"
         elif row["pct_moderate_or_worse"] > 30:
@@ -288,8 +318,12 @@ def build_risk_matrix(labels, severity, velocity_flat, severity_names,
     for _, row in risk_summary.iterrows():
         print(f"  Cluster {int(row['cluster'])}: {row['cluster_risk'].upper()}")
         print(f"    Mean velocity: {row['vel_mean']} mm/yr")
-        print(f"    Moderate+ subsidence: {row['pct_moderate_or_worse']}%")
-        print(f"    Rapid subsidence: {row['pct_rapid']}%")
+        print(f"    Moderate+ subsidence: {row['pct_moderate_or_worse']}% "
+              f"(of valid-velocity pixels)")
+        print(f"    Rapid subsidence: {row['pct_rapid']}% "
+              f"(of valid-velocity pixels)")
+        print(f"    Velocity coverage: {row['pct_velocity_coverage']}% "
+              f"({int(row['classified_pixels']):,}/{int(row['total_pixels']):,} pixels)")
 
     return risk_matrix, risk_summary
 

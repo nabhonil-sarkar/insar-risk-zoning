@@ -10,7 +10,9 @@ This module works with the downloaded GeoTIFFs.
 
 import os
 import glob
+import json
 import numpy as np
+import rasterio
 from src.utils.geo_utils import load_raster, save_raster, reproject_raster
 from config.settings import (
     RAW_EMBEDDINGS_DIR, PROC_EMBEDDINGS_DIR, COMMON_CRS, COMMON_RESOLUTION,
@@ -39,10 +41,11 @@ def load_embeddings(filepath):
     profile : dict
     """
     data, profile = load_raster(filepath)
-    assert data.shape[0] == N_EMBEDDING_DIMS, (
-        f"Expected {N_EMBEDDING_DIMS} bands, got {data.shape[0]}. "
-        f"Check that the file contains the full embedding."
-    )
+    if data.shape[0] != N_EMBEDDING_DIMS:
+        raise ValueError(
+            f"Expected {N_EMBEDDING_DIMS} bands, got {data.shape[0]}. "
+            "Check that the file contains the full embedding."
+        )
     print(f"Loaded embeddings: {filepath}")
     print(f"  Shape: {data.shape}")
     print(f"  CRS: {profile['crs']}")
@@ -87,7 +90,7 @@ def find_embedding_files(directory=None, year=None):
     return files
 
 
-def normalize_embeddings(data, method=None):
+def normalize_embeddings(data, method=None, return_params=False):
     """
     Normalize embedding values for clustering.
 
@@ -113,6 +116,8 @@ def normalize_embeddings(data, method=None):
     normalized = data.copy().astype(np.float32)
     bands, h, w = normalized.shape
 
+    params = {"method": method, "bands": []}
+
     if method == "zscore":
         for b in range(bands):
             band_data = normalized[b]
@@ -124,6 +129,15 @@ def normalize_embeddings(data, method=None):
                     band_data[valid] = (band_data[valid] - mean) / std
                 else:
                     band_data[valid] = 0
+                params["bands"].append({
+                    "band": b + 1,
+                    "mean": float(mean),
+                    "std": float(std),
+                })
+            else:
+                params["bands"].append({
+                    "band": b + 1, "mean": None, "std": None,
+                })
         print("Applied z-score normalization (per-band)")
 
     elif method == "minmax":
@@ -137,6 +151,15 @@ def normalize_embeddings(data, method=None):
                     band_data[valid] = (band_data[valid] - vmin) / (vmax - vmin)
                 else:
                     band_data[valid] = 0
+                params["bands"].append({
+                    "band": b + 1,
+                    "min": float(vmin),
+                    "max": float(vmax),
+                })
+            else:
+                params["bands"].append({
+                    "band": b + 1, "min": None, "max": None,
+                })
         print("Applied min-max normalization (per-band)")
 
     elif method == "unit_length":
@@ -145,11 +168,14 @@ def normalize_embeddings(data, method=None):
         norms[norms == 0] = 1  # avoid division by zero
         flat /= norms
         normalized = flat.reshape(bands, h, w)
+        params["bands"] = None
         print("Applied unit-length normalization (per-pixel)")
 
     else:
         raise ValueError(f"Unknown normalization method: {method}")
 
+    if return_params:
+        return normalized, params
     return normalized
 
 
@@ -229,9 +255,16 @@ def preprocess_embeddings(input_path, output_dir=None, normalize=True):
 
     # Step 2: Load and normalize
     data, profile = load_raster(reproj_path)
+    if data.shape[0] != N_EMBEDDING_DIMS:
+        raise ValueError(
+            f"Expected {N_EMBEDDING_DIMS} embedding bands after "
+            f"reprojection; found {data.shape[0]}"
+        )
 
     if normalize:
-        data = normalize_embeddings(data)
+        data, normalization_params = normalize_embeddings(
+            data, return_params=True
+        )
         output_path = os.path.join(output_dir, f"{basename}_norm.tif")
     else:
         output_path = reproj_path
@@ -239,5 +272,13 @@ def preprocess_embeddings(input_path, output_dir=None, normalize=True):
     # Step 3: Save
     if normalize:
         save_raster(output_path, data, profile, nodata=np.nan)
+        with rasterio.open(output_path, "r+") as dataset:
+            dataset.update_tags(
+                normalization_method=NORMALIZATION_METHOD,
+                normalization_parameters=json.dumps(
+                    normalization_params, separators=(",", ":")
+                ),
+                embedding_dimensions=str(N_EMBEDDING_DIMS),
+            )
 
     return output_path

@@ -15,6 +15,7 @@ from rasterio.transform import from_origin
 
 import src.m3_feature_fusion as m3
 from src.m3_feature_fusion import prepare_embedding_features
+from src.utils.geo_utils import _resolve_resampling
 
 
 @pytest.fixture
@@ -86,3 +87,8 @@ def test_sampling_respects_cap(clean_embedding_tif, monkeypatch):
     assert full_features.shape[0] == n_valid       # full set untouched
     assert features.shape[0] == 10                 # min(10, 100 * 0.1)
     assert features.shape[1] == full_features.shape[1]
+
+
+def test_invalid_resampling_name_fails_clearly():
+    with pytest.raises(ValueError, match="Unknown resampling method"):
+        _resolve_resampling("invented-gradient")

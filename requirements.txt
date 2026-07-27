@@ -1,18 +1,13 @@
-# Pinned dependency spec for insar-risk-zoning (v0.3.1).
+# Bounded dependency spec for insar-risk-zoning.
 #
-# Bounds reflect what the code actually requires:
-#   - matplotlib >=3.6: colormaps registry + .resampled() (subcluster map);
-#     deprecated boxplot(labels=)/get_cmap() calls were removed in v0.3.1,
-#     so modern matplotlib (>=3.9) is fully supported.
-#   - hdbscan (standalone, NOT sklearn.cluster.HDBSCAN): approximate_predict
-#     is required by the M4 safety net; sklearn's port lacks it.
-#   - numpy <3: ceiling for the compiled geospatial stack.
+# Bounds reflect what the code requires:
+#   - matplotlib >=3.6: colormaps registry + .resampled().
+#   - hdbscan is the standalone package; approximate_predict is required.
+#   - numpy <2.5 avoids a Rasterio array-shape deprecation observed under 2.5.
 #
-# For an exact environment lock, run on the working machine:
-#     pip freeze > requirements.lock.txt
-# and commit both files.
+# Use a project lock file for an exact, platform-specific environment.
 
-numpy>=1.26,<3
+numpy>=1.26,<2.5
 pandas>=2.0,<3
 scikit-learn>=1.4,<2
 hdbscan>=0.8.33
@@ -25,6 +20,3 @@ folium>=0.15,<1
 # Earth Engine export only (scripts/export_embeddings.py)
 earthengine-api>=1.1.0
 geemap>=0.34.0
-
-# Development / tests
-pytest>=8.0

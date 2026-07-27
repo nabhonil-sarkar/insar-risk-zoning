@@ -45,14 +45,16 @@ matplotlib.use("Agg")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.settings import (
-    ensure_dirs,
+    ensure_dirs, validate_settings,
     RAW_EMBEDDINGS_DIR, RAW_INSAR_DIR,
     PROC_EMBEDDINGS_DIR, PROC_INSAR_DIR, PROC_FUSED_DIR,
     OUT_CLUSTERS_DIR, OUT_RISK_MAPS_DIR, OUT_FIGURES_DIR,
     OUT_LOG_DIR, PIPELINE_STATE_FILE, DEFAULT_N_CLUSTERS,
+    PIPELINE_STATE_SCHEMA_VERSION,
     CALIBRATION_MIN_CLUSTER_PIXELS,
     CALIBRATION_MAX_SHIFT, CALIBRATION_CANDIDATE_TOLERANCE,
     ANALYSIS_YEAR, INSAR_VELOCITY_IS_LOS, CLUSTER_EXPOSURE,
+    INSAR_VSTD_THRESHOLD,
 )
 from src.utils.stage_cache import (
     cache_valid, write_sidecar, stage_params, file_identity,
@@ -72,6 +74,16 @@ STAGE_ORDER = ["m2", "m1", "m3", "m4", "cal", "m4b", "m5"]
 logger = logging.getLogger("pipeline")
 
 
+def _configure_console_utf8():
+    """Make Windows stdout/stderr safe for the pipeline's Unicode output."""
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (OSError, ValueError):
+                pass
+
+
 def setup_logging():
     """
     Configure dual-output logging: timestamped file + clean console.
@@ -83,6 +95,11 @@ def setup_logging():
     The log file captures pipeline orchestration, caching decisions,
     calibration results, and timing — the important bits for debugging.
     """
+    # Windows terminals frequently default to a legacy encoding that cannot
+    # represent the pipeline's scientific symbols and box-drawing separators.
+    # Configure the console stream once so logging does not crash mid-run.
+    _configure_console_utf8()
+
     os.makedirs(OUT_LOG_DIR, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(OUT_LOG_DIR, f"pipeline_{timestamp}.log")
@@ -166,7 +183,7 @@ def compute_force_stages(force_all=False, force_from=None):
 
 
 def check_stage_cache(output_path, label, stage, force_stages, params,
-                      inputs=None):
+                      inputs=None, required_outputs=None):
     """
     Fingerprint-aware cache check (replaces existence-only find_cached for
     stages wired into the sidecar system — review findings 2.1–2.4).
@@ -182,6 +199,16 @@ def check_stage_cache(output_path, label, stage, force_stages, params,
         logger.info(f"  [forced] {label} — reprocessing")
         return None
     hit, reason = cache_valid(output_path, params, inputs=inputs)
+    if hit:
+        missing_outputs = [
+            p for p in (required_outputs or []) if not os.path.exists(p)
+        ]
+        if missing_outputs:
+            hit = False
+            reason = (
+                "co-produced output missing: "
+                + ", ".join(missing_outputs)
+            )
     if hit:
         size_mb = os.path.getsize(output_path) / 1e6
         logger.info(f"  [cached] {label}: {os.path.basename(output_path)} "
@@ -231,74 +258,52 @@ def _discover_insar_inputs():
       - If more than one velocity candidate remains, fail loudly rather than
         silently picking one.
 
-    Returns (velocity_raw_path, coherence_path_or_None). Discovery is
+    Returns (velocity_raw_path, coherence_path_or_None, vstd_path_or_None,
+    n_unw_path_or_None). Discovery is
     separated from preprocessing so the raw file identities can be
     fingerprinted for cache validation before deciding whether M1 must run.
     """
-    # Vocabulary that only pipeline OUTPUTS carry. Raw LiCSBAS exports are
-    # named like 'jakarta_velocity_mmyr.tif' / '<frame>.vel.geo.tif'.
-    PROCESSED_MARKERS = ("calibrated", "aligned", "vertical", "masked",
-                         "reproj", "nodata_masked")
-
-    all_tifs = sorted(
-        f for f in os.listdir(RAW_INSAR_DIR)
-        if f.lower().endswith((".tif", ".tiff"))
+    from src.utils.input_validation import (
+        discover_insar_inputs,
+        validate_insar_value_domains,
+        validate_matched_insar_grids,
     )
-    if not all_tifs:
-        logger.error("No InSAR files found in data/raw/insar/")
+
+    try:
+        inputs = discover_insar_inputs(RAW_INSAR_DIR)
+        validate_matched_insar_grids(inputs)
+        validate_insar_value_domains(inputs)
+    except (FileNotFoundError, ValueError) as exc:
+        logger.error(f"REFUSING to run: {exc}")
         sys.exit(1)
 
-    contaminated = [
-        f for f in all_tifs
-        if any(m in f.lower() for m in PROCESSED_MARKERS)
-    ]
-    if contaminated:
-        logger.error(
-            f"REFUSING to run: {len(contaminated)} file(s) in "
-            f"{RAW_INSAR_DIR} carry processed-product names: {contaminated}. "
-            f"These are pipeline outputs (or artifacts of the deprecated "
-            f"calibrate-and-copy-back workflow), NOT raw data. Ingesting "
-            f"one silently corrupts every downstream product — the LOS "
-            f"factor gets applied twice and nodata masking goes blind. "
-            f"Move them out of data/raw/insar/ (e.g. to data/archive/) "
-            f"and keep only the original LiCSBAS export here."
+    logger.info(
+        f"  Velocity input: {os.path.basename(inputs['velocity'])}"
+    )
+    if inputs["coherence"]:
+        logger.info(
+            f"  Coherence mask: "
+            f"{os.path.basename(inputs['coherence'])}"
         )
-        sys.exit(1)
-
-    coh_files = [f for f in all_tifs if "coh" in f.lower()]
-    # Velocity candidates: everything that is not coherence and not synthetic
-    vel_candidates = [
-        f for f in all_tifs
-        if "coh" not in f.lower() and "synthetic" not in f.lower()
-    ]
-
-    if not vel_candidates:
-        logger.error(
-            f"No velocity candidate in {RAW_INSAR_DIR} after excluding "
-            f"coherence/synthetic files. Found: {all_tifs}"
+    if inputs["vstd"]:
+        logger.info(
+            f"  Uncertainty (vstd): {os.path.basename(inputs['vstd'])}"
         )
-        sys.exit(1)
-
-    if len(vel_candidates) > 1:
-        logger.error(
-            f"Ambiguous InSAR velocity input — {len(vel_candidates)} "
-            f"candidates in {RAW_INSAR_DIR}: {vel_candidates}. "
-            f"Leave exactly one velocity GeoTIFF (coherence files may use "
-            f"'coh' in their name and will be auto-detected for masking)."
+    if inputs["n_unw"]:
+        logger.info(
+            f"  Unwrap count (QA): {os.path.basename(inputs['n_unw'])}"
         )
-        sys.exit(1)
 
-    vel_raw_path = os.path.join(RAW_INSAR_DIR, vel_candidates[0])
-    coh_path = os.path.join(RAW_INSAR_DIR, coh_files[0]) if coh_files else None
-
-    logger.info(f"  Velocity input: {vel_candidates[0]}")
-    if coh_path:
-        logger.info(f"  Coherence mask: {coh_files[0]}")
-
-    return vel_raw_path, coh_path
+    return (
+        inputs["velocity"],
+        inputs["coherence"],
+        inputs["vstd"],
+        inputs["n_unw"],
+    )
 
 
-def validate_cluster_exposure(labels, label_file_path, accept_exposure=False):
+def validate_cluster_exposure(labels, label_file_path, accept_exposure=False,
+                              production=False):
     """
     Guard against a stale CLUSTER_EXPOSURE assignment.
 
@@ -316,10 +321,17 @@ def validate_cluster_exposure(labels, label_file_path, accept_exposure=False):
          current clustering — hard error unless --accept-exposure is passed
          (for the case where the analyst has re-inspected and confirmed).
     """
+    current_ids = {int(c) for c in np.unique(labels[labels >= 0])}
     if not CLUSTER_EXPOSURE:
+        if production:
+            logger.error(
+                "Production risk generation requires explicit exposure for "
+                "every cluster; CLUSTER_EXPOSURE is empty. Run without "
+                "--production for a diagnostic hazard/severity product."
+            )
+            sys.exit(1)
         return
 
-    current_ids = {int(c) for c in np.unique(labels[labels >= 0])}
     bad_keys = {int(key) for key in CLUSTER_EXPOSURE} - current_ids
     if bad_keys:
         logger.error(
@@ -331,6 +343,28 @@ def validate_cluster_exposure(labels, label_file_path, accept_exposure=False):
             f"config/settings.py."
         )
         sys.exit(1)
+
+    invalid_values = {
+        value for value in CLUSTER_EXPOSURE.values()
+        if value not in {"low", "medium", "high"}
+    }
+    if invalid_values:
+        logger.error(
+            f"Invalid CLUSTER_EXPOSURE value(s): {sorted(invalid_values)}. "
+            "Allowed values are low, medium, high."
+        )
+        sys.exit(1)
+
+    if production:
+        missing_ids = current_ids - {
+            int(key) for key in CLUSTER_EXPOSURE
+        }
+        if missing_ids:
+            logger.error(
+                "Production risk generation requires exposure for every "
+                f"cluster; missing IDs: {sorted(missing_ids)}"
+            )
+            sys.exit(1)
 
     if not (label_file_path and os.path.exists(PIPELINE_STATE_FILE)):
         return
@@ -400,6 +434,7 @@ def save_pipeline_state(paths, config, risk_summary_df):
         })
 
     state = {
+        "schema_version": PIPELINE_STATE_SCHEMA_VERSION,
         "timestamp": datetime.now().isoformat(),
         "config": config,
         "paths": paths,
@@ -407,8 +442,10 @@ def save_pipeline_state(paths, config, risk_summary_df):
     }
 
     os.makedirs(os.path.dirname(PIPELINE_STATE_FILE), exist_ok=True)
-    with open(PIPELINE_STATE_FILE, "w") as f:
+    temp_state_path = PIPELINE_STATE_FILE + ".tmp"
+    with open(temp_state_path, "w", encoding="utf-8") as f:
         json.dump(state, f, indent=2)
+    os.replace(temp_state_path, PIPELINE_STATE_FILE)
 
     logger.info(f"  Pipeline state:       {PIPELINE_STATE_FILE}")
 
@@ -569,7 +606,7 @@ def calibrate_velocity_field(label_raster, velocity_path, output_path,
 
 def main(force=False, force_from=None, method="kmeans", k=None,
          no_k_search=False, no_calibration=False, synthetic=False,
-         accept_exposure=False):
+         accept_exposure=False, production=False):
     """
     Run the full two-stage pipeline.
 
@@ -593,8 +630,11 @@ def main(force=False, force_from=None, method="kmeans", k=None,
     accept_exposure : bool
         Acknowledge that CLUSTER_EXPOSURE has been re-verified against the
         current clustering (bypasses the stale-exposure guard).
+    production : bool
+        Require explicit exposure for every cluster before generating risk.
     """
     # ── Setup ────────────────────────────────────────────────────────
+    validate_settings()
     log_file = setup_logging()
     force_stages = compute_force_stages(force, force_from)
 
@@ -673,6 +713,10 @@ def main(force=False, force_from=None, method="kmeans", k=None,
     from src.m1_insar_ingestion import preprocess_insar, generate_synthetic_insar
     from src.utils.geo_utils import load_raster, save_raster
 
+    vel_raw_path = None
+    coh_raw_path = None
+    vstd_raw_path = None
+    n_unw_raw_path = None
     if synthetic:
         logger.info("Using SYNTHETIC InSAR data for pipeline testing.")
         emb_data, emb_profile = load_raster(emb_path)
@@ -686,15 +730,20 @@ def main(force=False, force_from=None, method="kmeans", k=None,
         save_raster(synth_path, synth_velocity, emb_profile, nodata=np.nan)
         vel_path = synth_path
     else:
-        vel_raw_path, coh_raw_path = _discover_insar_inputs()
-        m1_inputs = [vel_raw_path] + ([coh_raw_path] if coh_raw_path else [])
+        (vel_raw_path, coh_raw_path, vstd_raw_path,
+         n_unw_raw_path) = _discover_insar_inputs()
+        m1_inputs = ([vel_raw_path]
+                     + ([coh_raw_path] if coh_raw_path else [])
+                     + ([vstd_raw_path] if vstd_raw_path else []))
 
         # The final M1 product is determined by config, not by whichever
         # stale file happens to exist (the old fallback chain could e.g.
         # keep serving velocity_masked.tif after the coherence file was
-        # removed): coherence present -> masked; LOS conversion on ->
-        # vertical; otherwise reproj.
-        if coh_raw_path:
+        # removed): any masking (coherence or vstd) -> masked; LOS
+        # conversion on -> vertical; otherwise reproj.
+        vstd_active = (vstd_raw_path is not None
+                       and INSAR_VSTD_THRESHOLD is not None)
+        if coh_raw_path or vstd_active:
             expected_vel = os.path.join(PROC_INSAR_DIR, "velocity_masked.tif")
             m1_label = "Masked InSAR velocity"
         elif INSAR_VELOCITY_IS_LOS:
@@ -705,14 +754,23 @@ def main(force=False, force_from=None, method="kmeans", k=None,
             m1_label = "Reprojected InSAR velocity"
 
         m1_params = stage_params("m1")
+        vstd_vertical_path = os.path.join(
+            PROC_INSAR_DIR, "vstd_vertical.tif"
+        )
         cached_vel = check_stage_cache(expected_vel, m1_label, "m1",
                                        force_stages, m1_params,
-                                       inputs=m1_inputs)
+                                       inputs=m1_inputs,
+                                       required_outputs=(
+                                           [vstd_vertical_path]
+                                           if vstd_raw_path is not None
+                                           else []
+                                       ))
 
         if cached_vel:
             vel_path = cached_vel
         else:
-            vel_path = preprocess_insar(vel_raw_path, coh_raw_path)
+            vel_path = preprocess_insar(vel_raw_path, coh_raw_path,
+                                        vstd_path=vstd_raw_path)
             write_sidecar(vel_path, m1_params, inputs=m1_inputs)
 
     # ── MODULE 3: Data Alignment ─────────────────────────────────────
@@ -724,21 +782,39 @@ def main(force=False, force_from=None, method="kmeans", k=None,
     from src.m3_feature_fusion import align_datasets, prepare_embedding_features
 
     # Idempotency: fingerprint-aware — invalidates when either the processed
-    # embeddings or the processed velocity were rebuilt (cascade correctness)
+    # embeddings or the processed velocity were rebuilt (cascade correctness).
+    # The vstd confidence layer, when M1 produced one, is a tracked input too:
+    # a threshold change reruns M1 (new vstd_vertical mtime) and cascades here.
     expected_aligned = os.path.join(PROC_FUSED_DIR, "velocity_aligned.tif")
+    expected_vstd_aligned = os.path.join(PROC_FUSED_DIR, "vstd_aligned.tif")
+    vstd_vertical_path = os.path.join(PROC_INSAR_DIR, "vstd_vertical.tif")
+    have_vstd = (
+        vstd_raw_path is not None and os.path.exists(vstd_vertical_path)
+    )
+
     m3_params = stage_params("m3")
-    m3_inputs = [emb_path, vel_path]
+    m3_inputs = [emb_path, vel_path] + ([vstd_vertical_path] if have_vstd else [])
     cached_aligned = check_stage_cache(expected_aligned, "Aligned velocity",
                                        "m3", force_stages, m3_params,
-                                       inputs=m3_inputs)
+                                       inputs=m3_inputs,
+                                       required_outputs=(
+                                           [expected_vstd_aligned]
+                                           if have_vstd else []
+                                       ))
 
     if cached_aligned:
         emb_path_aligned = emb_path
         vel_path_aligned = cached_aligned
+        # The sidecar validated against the current inputs (incl. vstd), so a
+        # co-produced aligned vstd is equally current if it exists on disk.
+        vstd_path_aligned = (expected_vstd_aligned
+                             if have_vstd and os.path.exists(expected_vstd_aligned)
+                             else None)
     else:
-        emb_path_aligned, vel_path_aligned = align_datasets(
+        emb_path_aligned, vel_path_aligned, vstd_path_aligned = align_datasets(
             embedding_path=emb_path,
             insar_velocity_path=vel_path,
+            insar_vstd_path=vstd_vertical_path if have_vstd else None,
         )
         write_sidecar(vel_path_aligned, m3_params, inputs=m3_inputs)
 
@@ -918,7 +994,8 @@ def main(force=False, force_from=None, method="kmeans", k=None,
 
     # ── Exposure guard: refuse stale CLUSTER_EXPOSURE assignments ────
     validate_cluster_exposure(labels, label_file_path,
-                              accept_exposure=accept_exposure)
+                              accept_exposure=accept_exposure,
+                              production=production)
 
     # ── MODULE 4B: Stage 2 — InSAR Overlay ───────────────────────────
     logger.info("\n" + "─" * 50)
@@ -976,8 +1053,13 @@ def main(force=False, force_from=None, method="kmeans", k=None,
     # ── Save Pipeline State ──────────────────────────────────────────
     save_pipeline_state(
         paths={
+            "velocity_raw": vel_raw_path,
+            "vstd_raw": vstd_raw_path,
+            "coherence_raw": coh_raw_path,
+            "n_unw_raw": n_unw_raw_path,
             "embeddings_norm": emb_path,
             "velocity_aligned": vel_path_aligned,
+            "vstd_aligned": vstd_path_aligned,
             "velocity_for_overlay": vel_for_overlay,
             "cluster_labels": label_file_path,
             "risk_zones": risk_path,
@@ -994,6 +1076,9 @@ def main(force=False, force_from=None, method="kmeans", k=None,
             "n_clusters": int(metrics.get("n_clusters", 0)),
             "calibrated": not no_calibration and not synthetic,
             "synthetic": synthetic,
+            "product_mode": (
+                "production_risk" if production else "diagnostic_hazard"
+            ),
             # Identity of the labels file this run's risk products are built
             # on — used to detect stale CLUSTER_EXPOSURE assignments.
             "cluster_labels_identity": (
@@ -1026,7 +1111,9 @@ def main(force=False, force_from=None, method="kmeans", k=None,
 # CLI ENTRY POINT
 # ══════════════════════════════════════════════════════════════════════════════
 
-if __name__ == "__main__":
+def cli(argv=None):
+    """Command-line entry point used by the script and installed package."""
+    _configure_console_utf8()
     parser = argparse.ArgumentParser(
         description="InSAR-Informed Subsidence Risk Zoning Pipeline",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1093,8 +1180,13 @@ if __name__ == "__main__":
         help="Acknowledge CLUSTER_EXPOSURE was re-verified against the "
              "CURRENT clustering (bypasses the stale-exposure guard).",
     )
+    parser.add_argument(
+        "--production", action="store_true",
+        help="Require explicit exposure for every current cluster. Without "
+             "this flag, outputs are diagnostic hazard/severity products.",
+    )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     main(
         force=args.force,
         force_from=args.force_from,
@@ -1104,4 +1196,9 @@ if __name__ == "__main__":
         no_calibration=args.no_calibration,
         synthetic=args.synthetic,
         accept_exposure=args.accept_exposure,
+        production=args.production,
     )
+
+
+if __name__ == "__main__":
+    cli()

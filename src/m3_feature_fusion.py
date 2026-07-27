@@ -18,6 +18,7 @@ Stage 2 overlays InSAR onto the resulting clusters.
 
 import os
 import numpy as np
+import rasterio
 from src.utils.geo_utils import (
     load_raster, save_raster, align_rasters, raster_to_features,
 )
@@ -28,10 +29,12 @@ from config.settings import (
 )
 
 
-def align_datasets(embedding_path, insar_velocity_path, output_dir=None):
+def align_datasets(embedding_path, insar_velocity_path, output_dir=None,
+                   insar_vstd_path=None):
     """
-    Align InSAR velocity to the embedding grid. Both datasets are kept
-    as separate files on the same pixel grid.
+    Align InSAR velocity (and optionally its vstd uncertainty layer) to the
+    embedding grid. All datasets are kept as separate files on the same
+    pixel grid.
 
     Parameters
     ----------
@@ -40,6 +43,12 @@ def align_datasets(embedding_path, insar_velocity_path, output_dir=None):
     insar_velocity_path : str
         Path to processed InSAR velocity GeoTIFF (single band, mm/yr).
     output_dir : str, optional
+    insar_vstd_path : str, optional
+        Path to the vertical-scaled vstd GeoTIFF produced by M1
+        (vstd_vertical.tif). Aligned onto the same grid as the velocity and
+        carried through as a confidence product: Phase-2 GNSS validation
+        needs per-pixel uncertainty, threshold tuning needs the survival
+        distribution on the analysis grid, and the map can show confidence.
 
     Returns
     -------
@@ -47,6 +56,8 @@ def align_datasets(embedding_path, insar_velocity_path, output_dir=None):
         Unchanged — just passed through.
     aligned_velocity_path : str
         Path to the velocity file aligned to the embedding grid.
+    aligned_vstd_path : str or None
+        Path to the aligned vstd file, or None if no vstd was provided.
     """
     if output_dir is None:
         output_dir = PROC_FUSED_DIR
@@ -64,7 +75,33 @@ def align_datasets(embedding_path, insar_velocity_path, output_dir=None):
     align_rasters(embedding_path, insar_velocity_path, aligned_vel_path,
                   resampling=INSAR_RESAMPLING)
 
-    return embedding_path, aligned_vel_path
+    # Align the uncertainty layer identically (same grid, same resampling),
+    # so every velocity pixel has a co-registered vstd.
+    aligned_vstd_path = None
+    if insar_vstd_path is not None:
+        if not os.path.exists(insar_vstd_path):
+            raise FileNotFoundError(
+                f"Configured vstd input does not exist: {insar_vstd_path}"
+            )
+        aligned_vstd_path = os.path.join(output_dir, "vstd_aligned.tif")
+        align_rasters(embedding_path, insar_vstd_path, aligned_vstd_path,
+                      resampling=INSAR_RESAMPLING)
+        with rasterio.open(aligned_vel_path) as vel_src, \
+                rasterio.open(aligned_vstd_path) as vstd_src:
+            same_grid = (
+                vel_src.width == vstd_src.width
+                and vel_src.height == vstd_src.height
+                and vel_src.crs == vstd_src.crs
+                and vel_src.transform == vstd_src.transform
+            )
+            if not same_grid:
+                raise ValueError(
+                    "Aligned velocity and vstd do not share the same grid"
+                )
+        print(f"Aligned vstd confidence layer -> "
+              f"{os.path.basename(aligned_vstd_path)}")
+
+    return embedding_path, aligned_vel_path, aligned_vstd_path
 
 
 

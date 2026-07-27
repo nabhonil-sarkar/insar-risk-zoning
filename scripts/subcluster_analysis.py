@@ -30,7 +30,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from config.settings import (
     OUT_CLUSTERS_DIR, OUT_FIGURES_DIR, RANDOM_STATE,
-    PIPELINE_STATE_FILE, SUB_K_RANGE, SUBCLUSTER_MAX_SAMPLES,
+    PIPELINE_STATE_FILE, PIPELINE_STATE_SCHEMA_VERSION,
+    SUB_K_RANGE, SUBCLUSTER_MAX_SAMPLES,
 )
 
 
@@ -55,8 +56,22 @@ def load_pipeline_state(state_path=None):
         print("Run the main pipeline first: python scripts/run_full_pipeline.py")
         sys.exit(1)
 
-    with open(state_path) as f:
+    with open(state_path, encoding="utf-8") as f:
         state = json.load(f)
+
+    schema_version = state.get("schema_version")
+    if schema_version != PIPELINE_STATE_SCHEMA_VERSION:
+        raise ValueError(
+            f"Unsupported pipeline-state schema {schema_version!r}; "
+            f"expected {PIPELINE_STATE_SCHEMA_VERSION}. Rerun the main "
+            "pipeline before sub-clustering."
+        )
+    required_sections = {"timestamp", "config", "paths", "risk_summary"}
+    missing = required_sections - set(state)
+    if missing:
+        raise ValueError(
+            f"Pipeline state is missing required sections: {sorted(missing)}"
+        )
 
     print(f"Loaded pipeline state: {state_path}")
     print(f"  Pipeline ran: {state['timestamp']}")
@@ -96,9 +111,19 @@ def identify_target_cluster(state, target_cluster=None):
         print(f"Target cluster (user override): {target_cluster}")
         return target_cluster
 
-    # Auto-select: highest risk, then highest pct_rapid as tiebreaker
+    # Auto-select: highest assessed risk, then highest pct_rapid as
+    # tiebreaker. Never auto-target a cluster whose coverage gate failed.
     risk_order = {"very_high": 4, "high": 3, "moderate": 2, "low": 1}
-    best = max(risk_summary, key=lambda r: (
+    eligible = [
+        record for record in risk_summary
+        if record.get("cluster_risk") in risk_order
+    ]
+    if not eligible:
+        raise ValueError(
+            "No cluster has sufficient velocity evidence for automatic "
+            "sub-clustering"
+        )
+    best = max(eligible, key=lambda r: (
         risk_order.get(r["cluster_risk"], 0),
         r["pct_rapid"],
     ))

@@ -196,7 +196,11 @@ def generate_report(cluster_stats, risk_matrix, risk_summary, metrics,
         "",
     ]
     for _, row in risk_summary.iterrows():
-        lines.append(f"  Cluster {int(row['cluster'])}: {row['cluster_risk'].upper()} RISK")
+        if row["cluster_risk"] == "insufficient_evidence":
+            rating = "INSUFFICIENT EVIDENCE — NO CLUSTER RISK ASSIGNED"
+        else:
+            rating = f"{row['cluster_risk'].upper()} RISK"
+        lines.append(f"  Cluster {int(row['cluster'])}: {rating}")
         lines.append(f"    Moderate+ subsidence: {row['pct_moderate_or_worse']}% of valid-velocity pixels")
         lines.append(f"    Rapid subsidence: {row['pct_rapid']}% of valid-velocity pixels")
         # Coverage flags clusters whose risk is based on sparse InSAR data.
@@ -210,7 +214,7 @@ def generate_report(cluster_stats, risk_matrix, risk_summary, metrics,
 
     report_text = "\n".join(lines)
     report_path = os.path.join(output_dir, "analysis_report.txt")
-    with open(report_path, "w") as f:
+    with open(report_path, "w", encoding="utf-8") as f:
         f.write(report_text)
 
     print(f"\nReport saved: {report_path}")
@@ -249,7 +253,9 @@ def generate_all_figures(labels, velocity_flat, severity, severity_names,
     fig, ax = plt.subplots(figsize=(14, 7))
     data_by_cluster = []
     tick_labels = []
-    valid_vel = ~np.isnan(velocity_flat) & (velocity_flat != 0)
+    # Exact zero is a valid stable velocity; M1 has already converted raw
+    # nodata sentinels to NaN.
+    valid_vel = np.isfinite(velocity_flat)
 
     for c in range(n_clusters):
         mask = (labels == c) & valid_vel

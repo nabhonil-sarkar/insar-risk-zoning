@@ -33,6 +33,7 @@ OUT_LOG_DIR = os.path.join(OUTPUT_DIR, "logs")
 
 # Pipeline state: written by run_full_pipeline, read by sub-clustering etc.
 PIPELINE_STATE_FILE = os.path.join(OUTPUT_DIR, "pipeline_state.json")
+PIPELINE_STATE_SCHEMA_VERSION = 2
 
 # =============================================================================
 # REGION OF INTEREST — Jakarta
@@ -79,6 +80,12 @@ INSAR_POLARIZATION = "VV"
 # finding 1.6, root-cause fix).
 INSAR_NODATA_VALUES = [0.0]
 
+# Values in the raw LiCSBAS velocity-standard-deviation raster that represent
+# no data but may not be declared in the GeoTIFF metadata. A true zero
+# uncertainty is not credible for this product; zero-valued cells are treated
+# as missing rather than as perfectly certain measurements.
+INSAR_VSTD_NODATA_VALUES = [0.0]
+
 # Resampling for InSAR rasters (velocity + coherence). The raw LiCSBAS grid
 # (~1 km) is far coarser than the 30 m analysis grid, so this is a large
 # upsample: "nearest" preserves each measurement's value exactly (blocky but
@@ -98,6 +105,18 @@ INSAR_INCIDENCE_ANGLE_DEG = 39.0
 
 # Coherence masking: pixels below this threshold are discarded as unreliable
 COHERENCE_THRESHOLD = 0.3
+
+# Velocity-uncertainty masking. LiCSBAS vstd is converted from LOS to vertical
+# with the same scale factor as velocity. Pixels are retained when
+# vstd <= threshold (inclusive); finite velocity with missing vstd is masked.
+# Set to None only for an explicitly documented sensitivity run.
+INSAR_VSTD_THRESHOLD = 15.0  # vertical mm/yr
+INSAR_VSTD_SWEEP_THRESHOLDS = (5, 10, 15, 20, 30, 50)
+
+# A cluster below this valid-velocity coverage is not assigned a production
+# cluster-level rating. The overlay currently reports the coverage; enforcing
+# the "insufficient evidence" class is a Phase-2 scientific change.
+MIN_CLUSTER_VELOCITY_COVERAGE_PCT = 20.0
 
 # Calibration: minimum valid pixels required for a cluster to qualify as the
 # stable reference (avoids selecting a tiny cluster with low std by chance)
@@ -173,7 +192,8 @@ CLUSTERING_METHODS = ["kmeans", "gmm", "hdbscan"]
 DEFAULT_METHOD = "kmeans"
 
 # K-Means / GMM
-K_RANGE = range(4, 16)  # test cluster counts from 4 to 15
+# Include k=2 and k=3 so the lower bound is evaluated rather than assumed.
+K_RANGE = range(2, 16)  # test cluster counts from 2 to 15
 DEFAULT_N_CLUSTERS = 8   # fallback when k-search is disabled
 RANDOM_STATE = 42
 KMEANS_BATCH_SIZE = 10_000  # MiniBatchKMeans batch size
@@ -215,6 +235,57 @@ RISK_COLORMAP = {
 
 MAP_CENTER = [-6.2, 106.85]  # Jakarta center [lat, lon]
 MAP_ZOOM = 12
+
+
+def validate_settings():
+    """Fail fast when scientific/configuration invariants are inconsistent."""
+    if COMMON_RESOLUTION <= 0:
+        raise ValueError("COMMON_RESOLUTION must be positive")
+    if INSAR_VSTD_THRESHOLD is not None and INSAR_VSTD_THRESHOLD < 0:
+        raise ValueError("INSAR_VSTD_THRESHOLD must be non-negative or None")
+    sweep = tuple(INSAR_VSTD_SWEEP_THRESHOLDS)
+    if any(value < 0 for value in sweep) or tuple(sorted(sweep)) != sweep:
+        raise ValueError(
+            "INSAR_VSTD_SWEEP_THRESHOLDS must be non-negative and sorted"
+        )
+    if not 0 <= MIN_CLUSTER_VELOCITY_COVERAGE_PCT <= 100:
+        raise ValueError(
+            "MIN_CLUSTER_VELOCITY_COVERAGE_PCT must lie in [0, 100]"
+        )
+
+    bins = sorted(SUBSIDENCE_THRESHOLDS.items(), key=lambda item: item[1][0])
+    if not bins or bins[0][1][0] != float("-inf"):
+        raise ValueError("Severity bins must start at -inf")
+    if bins[-1][1][1] != float("inf"):
+        raise ValueError("Severity bins must end at +inf")
+    for (_, (_, previous_hi)), (_, (next_lo, _)) in zip(bins, bins[1:]):
+        if previous_hi != next_lo:
+            raise ValueError(
+                f"Severity gap/overlap at {previous_hi} / {next_lo}"
+            )
+
+    if len(EXPOSURE_RISK_MATRIX) != len(SUBSIDENCE_THRESHOLDS):
+        raise ValueError(
+            "EXPOSURE_RISK_MATRIX must have one row per severity class"
+        )
+    if any(len(row) != 3 for row in EXPOSURE_RISK_MATRIX):
+        raise ValueError(
+            "EXPOSURE_RISK_MATRIX rows must contain low/medium/high columns"
+        )
+    valid_risk_codes = {1, 2, 3, 4}
+    if any(
+        value not in valid_risk_codes
+        for row in EXPOSURE_RISK_MATRIX for value in row
+    ):
+        raise ValueError("EXPOSURE_RISK_MATRIX contains an invalid risk code")
+    invalid_exposure = {
+        value for value in CLUSTER_EXPOSURE.values()
+        if value not in {"low", "medium", "high"}
+    }
+    if invalid_exposure:
+        raise ValueError(
+            f"Invalid CLUSTER_EXPOSURE values: {sorted(invalid_exposure)}"
+        )
 
 
 def ensure_dirs():

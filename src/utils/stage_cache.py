@@ -56,6 +56,7 @@ from typing import Iterable, Optional
 logger = logging.getLogger(__name__)
 
 SIDECAR_SUFFIX = ".cachemeta.json"
+SIDECAR_SCHEMA_VERSION = 2
 
 
 # --------------------------------------------------------------------------
@@ -67,7 +68,9 @@ _STAGE_SETTINGS: dict[str, list[str]] = {
     "m1": [
         "ACTIVE_ROI", "COMMON_RESOLUTION", "COMMON_CRS",
         "INSAR_VELOCITY_IS_LOS", "INSAR_INCIDENCE_ANGLE_DEG",
-        "COHERENCE_THRESHOLD",
+        "INSAR_NODATA_VALUES", "INSAR_VSTD_NODATA_VALUES",
+        "INSAR_RESAMPLING", "COHERENCE_THRESHOLD",
+        "INSAR_VSTD_THRESHOLD", "INSAR_VSTD_SWEEP_THRESHOLDS",
     ],
     "m2": [
         "ACTIVE_ROI", "COMMON_RESOLUTION", "COMMON_CRS",
@@ -75,11 +78,13 @@ _STAGE_SETTINGS: dict[str, list[str]] = {
     ],
     "m3": [
         "ACTIVE_ROI", "COMMON_RESOLUTION", "COMMON_CRS",
-        # add the resampling-method setting here once it exists as a setting
+        "INSAR_RESAMPLING",
     ],
     "m4": [
+        "RANDOM_STATE", "SAMPLE_FRACTION",
         "MAX_CLUSTERING_SAMPLES", "SILHOUETTE_MAX_SAMPLES",
         "KMEANS_BATCH_SIZE", "K_RANGE",
+        "HDBSCAN_MIN_CLUSTER_SIZE", "HDBSCAN_MIN_SAMPLES",
         "HDBSCAN_MAX_FIT_SAMPLES", "HDBSCAN_PCA_COMPONENTS",
         "HDBSCAN_MAX_NOISE_FRACTION", "HDBSCAN_MIN_USABLE_CLUSTERS",
         "HDBSCAN_FALLBACK_K",
@@ -90,10 +95,11 @@ _STAGE_SETTINGS: dict[str, list[str]] = {
     ],
     "m4b": [
         "SUBSIDENCE_THRESHOLDS", "UPLIFT_REPORT_THRESHOLD",
+        "MIN_CLUSTER_VELOCITY_COVERAGE_PCT",
         "CLUSTER_EXPOSURE", "DEFAULT_EXPOSURE", "EXPOSURE_RISK_MATRIX",
     ],
     "m5": [
-        "EXPOSURE_RISK_MATRIX",  # extend with any m5-specific tunables
+        "EXPOSURE_RISK_MATRIX", "RISK_COLORMAP",
     ],
 }
 
@@ -146,6 +152,7 @@ def write_sidecar(output_path: str, params: dict,
                   inputs: Optional[Iterable[str]] = None,
                   extra: Optional[dict] = None) -> str:
     meta = {
+        "schema_version": SIDECAR_SCHEMA_VERSION,
         "fingerprint": config_fingerprint(params),
         "params": json.loads(json.dumps(params, sort_keys=True, default=str)),
         "inputs": [file_identity(p) for p in (inputs or [])],
@@ -153,8 +160,10 @@ def write_sidecar(output_path: str, params: dict,
     if extra:
         meta["extra"] = extra
     sp = sidecar_path(output_path)
-    with open(sp, "w", encoding="utf-8") as fh:
+    temp_path = sp + ".tmp"
+    with open(temp_path, "w", encoding="utf-8") as fh:
         json.dump(meta, fh, indent=2)
+    os.replace(temp_path, sp)
     return sp
 
 
@@ -172,13 +181,31 @@ def cache_valid(output_path: str, params: dict,
     except (json.JSONDecodeError, OSError) as exc:
         return False, f"unreadable sidecar ({exc})"
 
+    if meta.get("schema_version") != SIDECAR_SCHEMA_VERSION:
+        return False, (
+            f"sidecar schema changed: {meta.get('schema_version')!r} -> "
+            f"{SIDECAR_SCHEMA_VERSION}"
+        )
+
     if meta.get("fingerprint") != config_fingerprint(params):
         changed = _diff_params(meta.get("params", {}), params)
         return False, f"config changed: {changed or 'unknown keys'}"
 
     recorded = {i["path"]: i for i in meta.get("inputs", [])}
-    for p in (inputs or []):
-        ap = os.path.abspath(p)
+    current_paths = [os.path.abspath(p) for p in (inputs or [])]
+    recorded_paths = set(recorded)
+    current_path_set = set(current_paths)
+    if recorded_paths != current_path_set:
+        added = sorted(current_path_set - recorded_paths)
+        removed = sorted(recorded_paths - current_path_set)
+        details = []
+        if added:
+            details.append(f"added: {', '.join(added)}")
+        if removed:
+            details.append(f"removed: {', '.join(removed)}")
+        return False, f"input set changed ({'; '.join(details)})"
+
+    for ap in current_paths:
         if ap not in recorded:
             return False, f"input not previously recorded: {ap}"
         if not os.path.exists(ap):

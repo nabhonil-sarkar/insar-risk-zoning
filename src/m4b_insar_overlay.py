@@ -17,6 +17,7 @@ import pandas as pd
 from src.utils.geo_utils import load_raster, save_raster, features_to_raster
 from config.settings import (
     OUT_CLUSTERS_DIR, SUBSIDENCE_THRESHOLDS, UPLIFT_REPORT_THRESHOLD,
+    MIN_CLUSTER_VELOCITY_COVERAGE_PCT,
 )
 
 
@@ -272,7 +273,9 @@ def build_risk_matrix(labels, severity, velocity_flat, severity_names,
         classified = (labels == c) & (severity >= 0)
         n_classified = int(classified.sum())
 
-        vel = velocity_flat[cluster_mask & ~np.isnan(velocity_flat) & (velocity_flat != 0)]
+        # Zero is a valid physical velocity. Raw nodata sentinels are converted
+        # to NaN in M1, so excluding exact zeros here would bias stable areas.
+        vel = velocity_flat[cluster_mask & np.isfinite(velocity_flat)]
 
         n_moderate = int((classified & (severity >= 2)).sum())
         n_rapid = int((classified & (severity >= 3)).sum())
@@ -299,9 +302,12 @@ def build_risk_matrix(labels, severity, velocity_flat, severity_names,
             "pct_rapid": pct_rapid,
         }
 
-        # Assign overall cluster risk level based on the proportion of
-        # VALID-VELOCITY pixels exhibiting subsidence.
-        if row["pct_rapid"] > 20:
+        # A prevalence estimate from sparse coverage is not evidence of
+        # cluster-wide risk. Withhold the rating below the configured gate.
+        if (row["pct_velocity_coverage"]
+                < MIN_CLUSTER_VELOCITY_COVERAGE_PCT):
+            row["cluster_risk"] = "insufficient_evidence"
+        elif row["pct_rapid"] > 20:
             row["cluster_risk"] = "very_high"
         elif row["pct_moderate_or_worse"] > 30:
             row["cluster_risk"] = "high"

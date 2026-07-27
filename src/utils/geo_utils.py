@@ -68,15 +68,33 @@ def save_raster(filepath, data, profile, nodata=None):
     if nodata is not None:
         profile["nodata"] = nodata
 
-    with rasterio.open(filepath, "w", **profile) as dst:
-        dst.write(data)
+    temp_path = filepath + ".tmp"
+    try:
+        with rasterio.open(temp_path, "w", **profile) as dst:
+            dst.write(data)
+        os.replace(temp_path, filepath)
+    except Exception:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise
     print(f"Saved: {filepath} — shape {data.shape}")
 
 
 def _resolve_resampling(resampling):
     """Accept a Resampling enum or its lowercase string name."""
     if isinstance(resampling, str):
-        return Resampling[resampling.lower()]
+        try:
+            return Resampling[resampling.lower()]
+        except KeyError as exc:
+            allowed = ", ".join(member.name for member in Resampling)
+            raise ValueError(
+                f"Unknown resampling method {resampling!r}; "
+                f"allowed: {allowed}"
+            ) from exc
+    if not isinstance(resampling, Resampling):
+        raise TypeError(
+            "resampling must be a rasterio Resampling value or string name"
+        )
     return resampling
 
 
@@ -121,17 +139,26 @@ def reproject_raster(src_path, dst_path, dst_crs, dst_resolution=None,
         )
 
         os.makedirs(os.path.dirname(dst_path), exist_ok=True)
-        with rasterio.open(dst_path, "w", **profile) as dst:
-            for i in range(1, src.count + 1):
-                reproject(
-                    source=rasterio.band(src, i),
-                    destination=rasterio.band(dst, i),
-                    src_transform=src.transform,
-                    src_crs=src.crs,
-                    dst_transform=transform,
-                    dst_crs=dst_crs,
-                    resampling=resampling,
-                )
+        temp_path = dst_path + ".tmp"
+        try:
+            with rasterio.open(temp_path, "w", **profile) as dst:
+                for i in range(1, src.count + 1):
+                    reproject(
+                        source=rasterio.band(src, i),
+                        destination=rasterio.band(dst, i),
+                        src_transform=src.transform,
+                        src_crs=src.crs,
+                        dst_transform=transform,
+                        dst_crs=dst_crs,
+                        src_nodata=src.nodata,
+                        dst_nodata=profile.get("nodata"),
+                        resampling=resampling,
+                    )
+            os.replace(temp_path, dst_path)
+        except Exception:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise
     print(f"Reprojected: {dst_path} -> {dst_crs} "
           f"(resampling={resampling.name})")
     return dst_path
@@ -176,17 +203,26 @@ def align_rasters(reference_path, target_path, output_path,
         )
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with rasterio.open(output_path, "w", **profile) as dst:
-            for i in range(1, src.count + 1):
-                reproject(
-                    source=rasterio.band(src, i),
-                    destination=rasterio.band(dst, i),
-                    src_transform=src.transform,
-                    src_crs=src.crs,
-                    dst_transform=ref_transform,
-                    dst_crs=ref_crs,
-                    resampling=resampling,
-                )
+        temp_path = output_path + ".tmp"
+        try:
+            with rasterio.open(temp_path, "w", **profile) as dst:
+                for i in range(1, src.count + 1):
+                    reproject(
+                        source=rasterio.band(src, i),
+                        destination=rasterio.band(dst, i),
+                        src_transform=src.transform,
+                        src_crs=src.crs,
+                        dst_transform=ref_transform,
+                        dst_crs=ref_crs,
+                        src_nodata=src.nodata,
+                        dst_nodata=profile.get("nodata"),
+                        resampling=resampling,
+                    )
+            os.replace(temp_path, output_path)
+        except Exception:
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            raise
     print(f"Aligned {target_path} to reference grid -> {output_path} "
           f"(resampling={resampling.name})")
     return output_path

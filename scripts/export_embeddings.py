@@ -15,6 +15,9 @@ Prerequisites:
 import ee
 import sys
 import os
+import argparse
+import json
+from datetime import datetime, timezone
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -24,10 +27,20 @@ from config.settings import (
 )
 
 
-def main():
+def main(years=None, roi_bounds=None, scale=None, crs=None, folder=None,
+         project=None, manifest_path=None):
+    years = list(years if years is not None else EMBEDDING_YEARS)
+    roi_bounds = list(roi_bounds if roi_bounds is not None else ACTIVE_ROI)
+    scale = scale if scale is not None else EXPORT_SCALE
+    crs = crs if crs is not None else EXPORT_CRS
+    folder = folder if folder is not None else EXPORT_FOLDER
+
     # Initialize Earth Engine
     try:
-        ee.Initialize()
+        if project:
+            ee.Initialize(project=project)
+        else:
+            ee.Initialize()
         print("Earth Engine initialized successfully.")
     except Exception as e:
         print(f"Earth Engine init failed: {e}")
@@ -35,15 +48,16 @@ def main():
         sys.exit(1)
 
     # Define ROI
-    roi = ee.Geometry.Rectangle(ACTIVE_ROI)
-    print(f"ROI: {ACTIVE_ROI}")
+    roi = ee.Geometry.Rectangle(roi_bounds)
+    print(f"ROI: {roi_bounds}")
 
     # Access the embedding collection
     collection = ee.ImageCollection(EMBEDDING_COLLECTION_ID)
     print(f"Collection: {EMBEDDING_COLLECTION_ID}")
 
     # Export each year
-    for year in EMBEDDING_YEARS:
+    records = []
+    for year in years:
         print(f"\nProcessing year {year}...")
 
         # Filter to the target year
@@ -71,23 +85,86 @@ def main():
         task = ee.batch.Export.image.toDrive(
             image=mosaic,
             description=description,
-            folder=EXPORT_FOLDER,
+            folder=folder,
             region=roi.getInfo()["coordinates"],
-            scale=EXPORT_SCALE,
-            crs=EXPORT_CRS,
+            scale=scale,
+            crs=crs,
             maxPixels=1e13,
             fileFormat="GeoTIFF",
         )
         task.start()
         print(f"  Export task started: '{description}'")
-        print(f"  Destination: Google Drive/{EXPORT_FOLDER}/")
+        print(f"  Destination: Google Drive/{folder}/")
+        records.append({
+            "year": int(year),
+            "description": description,
+            "task_id": task.id,
+            "collection": EMBEDDING_COLLECTION_ID,
+            "roi": roi_bounds,
+            "scale": scale,
+            "crs": crs,
+            "folder": folder,
+            "band_count": len(bands),
+            "tile_count": int(count),
+        })
+
+    if manifest_path:
+        manifest = {
+            "created_utc": datetime.now(timezone.utc).isoformat(),
+            "earth_engine_project": project,
+            "exports": records,
+        }
+        os.makedirs(
+            os.path.dirname(os.path.abspath(manifest_path)), exist_ok=True
+        )
+        temp_path = manifest_path + ".tmp"
+        with open(temp_path, "w", encoding="utf-8") as stream:
+            json.dump(manifest, stream, indent=2, allow_nan=False)
+        os.replace(temp_path, manifest_path)
+        print(f"Export request manifest: {os.path.abspath(manifest_path)}")
 
     print("\n" + "=" * 50)
     print("All export tasks submitted.")
     print("Monitor progress at: https://code.earthengine.google.com/tasks")
     print(f"When complete, download files to: data/raw/embeddings/")
     print("=" * 50)
+    return records
+
+
+def cli(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Submit versioned AlphaEarth exports to Google Drive"
+    )
+    parser.add_argument(
+        "--years", nargs="+", type=int, default=EMBEDDING_YEARS
+    )
+    parser.add_argument(
+        "--roi", nargs=4, type=float, metavar=("MIN_LON", "MIN_LAT",
+                                               "MAX_LON", "MAX_LAT"),
+        default=ACTIVE_ROI,
+    )
+    parser.add_argument("--scale", type=float, default=EXPORT_SCALE)
+    parser.add_argument("--crs", default=EXPORT_CRS)
+    parser.add_argument("--folder", default=EXPORT_FOLDER)
+    parser.add_argument(
+        "--project",
+        help="Earth Engine billing/project ID; otherwise use the authenticated default",
+    )
+    parser.add_argument(
+        "--manifest",
+        default=os.path.join("data", "output", "embedding_export_request.json"),
+    )
+    args = parser.parse_args(argv)
+    return main(
+        years=args.years,
+        roi_bounds=args.roi,
+        scale=args.scale,
+        crs=args.crs,
+        folder=args.folder,
+        project=args.project,
+        manifest_path=args.manifest,
+    )
 
 
 if __name__ == "__main__":
-    main()
+    cli()

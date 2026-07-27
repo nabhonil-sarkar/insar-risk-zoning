@@ -17,11 +17,13 @@ from config.settings import (
     RAW_INSAR_DIR, PROC_INSAR_DIR, COMMON_CRS, COMMON_RESOLUTION,
     SUBSIDENCE_THRESHOLDS, COHERENCE_THRESHOLD,
     INSAR_VELOCITY_IS_LOS, INSAR_INCIDENCE_ANGLE_DEG,
-    INSAR_NODATA_VALUES, INSAR_RESAMPLING,
+    INSAR_NODATA_VALUES, INSAR_VSTD_NODATA_VALUES, INSAR_RESAMPLING,
+    INSAR_VSTD_THRESHOLD, INSAR_VSTD_SWEEP_THRESHOLDS,
 )
 
 
-def _mask_undeclared_nodata(src_path, dst_path):
+def _mask_undeclared_nodata(src_path, dst_path, sentinels=None,
+                            label="Velocity", coastal_heuristic=False):
     """
     Convert undeclared sentinel nodata values (e.g. 0.0 in LiCSBAS-derived
     GeoTIFFs) to NaN, and declare NaN as nodata, BEFORE any resampling.
@@ -34,11 +36,15 @@ def _mask_undeclared_nodata(src_path, dst_path):
 
     Returns dst_path (a float32 copy with NaN nodata).
     """
+    if sentinels is None:
+        sentinels = INSAR_NODATA_VALUES
+
     data, profile = load_raster(src_path)
     data = data.astype(np.float32)
+    n_nan_native = int(np.isnan(data).sum())
 
     n_converted = 0
-    for sentinel in INSAR_NODATA_VALUES:
+    for sentinel in sentinels:
         hit = data == sentinel
         n_converted += int(hit.sum())
         data[hit] = np.nan
@@ -49,8 +55,8 @@ def _mask_undeclared_nodata(src_path, dst_path):
         data[hit] = np.nan
 
     save_raster(dst_path, data, profile, nodata=np.nan)
-    print(f"Nodata masking: {n_converted:,} sentinel-valued pixels -> NaN "
-          f"(sentinels: {INSAR_NODATA_VALUES}, declared: {declared})")
+    print(f"{label} nodata masking: {n_converted:,} sentinel-valued "
+          f"pixels -> NaN (sentinels: {sentinels}, declared: {declared})")
 
     # Content-level poisoning heuristic (complements the name-based guard in
     # _discover_insar_inputs): a raw LiCSBAS export over a coastal frame has
@@ -60,8 +66,8 @@ def _mask_undeclared_nodata(src_path, dst_path):
     # processing — the signature of an already-calibrated file. Masking is
     # then blind and every gap enters the risk products as fake measurement.
     n_total = data.size
-    n_nan_native = int(np.isnan(data).sum())
-    if n_total > 0 and (n_converted + n_nan_native) / n_total < 0.001:
+    if (coastal_heuristic and n_total > 0
+            and (n_converted + n_nan_native) / n_total < 0.001):
         print(
             "WARNING: <0.1% of pixels were nodata (converted + native NaN). "
             "For a coastal frame this is implausible for RAW data. The file "
@@ -120,6 +126,90 @@ def load_coherence_map(filepath):
     return coherence, profile
 
 
+def load_vstd_map(filepath):
+    """Load a LiCSBAS velocity-standard-deviation map in mm/yr."""
+    vstd, profile = load_raster(filepath)
+    finite = np.isfinite(vstd)
+    if np.any(vstd[finite] < 0):
+        raise ValueError(
+            f"vstd contains negative uncertainty values: {filepath}"
+        )
+    print(f"Loaded velocity uncertainty: {filepath}")
+    if finite.any():
+        print(
+            f"  Value range: [{np.nanmin(vstd):.3f}, "
+            f"{np.nanmax(vstd):.3f}] mm/yr"
+        )
+    else:
+        print("  Value range: no finite pixels")
+    return vstd, profile
+
+
+def vstd_survival_sweep(vstd, velocity, thresholds=None):
+    """
+    Return the percentage of finite-velocity pixels retained by each vstd
+    threshold. Missing vstd is never counted as retained.
+    """
+    if thresholds is None:
+        thresholds = INSAR_VSTD_SWEEP_THRESHOLDS
+    if vstd.shape != velocity.shape:
+        raise ValueError(
+            f"vstd and velocity shapes differ: {vstd.shape} vs "
+            f"{velocity.shape}"
+        )
+
+    vel_valid = np.isfinite(velocity)
+    n_velocity_valid = int(vel_valid.sum())
+    sweep = []
+    for threshold in thresholds:
+        if threshold < 0:
+            raise ValueError("vstd thresholds must be non-negative")
+        kept = vel_valid & np.isfinite(vstd) & (vstd <= threshold)
+        pct = (100.0 * int(kept.sum()) / n_velocity_valid
+               if n_velocity_valid else 0.0)
+        sweep.append((threshold, round(pct, 4)))
+    return sweep
+
+
+def apply_vstd_mask(velocity, vstd, threshold=None):
+    """
+    Mask velocity where uncertainty is missing or exceeds the threshold.
+
+    Retention is inclusive: vstd <= threshold is kept. The returned counters
+    form an exact partition of the finite input-velocity pixels.
+    """
+    if threshold is None:
+        threshold = INSAR_VSTD_THRESHOLD
+    if threshold is None:
+        n_kept = int(np.isfinite(velocity).sum())
+        return velocity.copy(), {
+            "n_over_threshold": 0,
+            "n_missing_vstd": 0,
+            "n_kept": n_kept,
+        }
+    if threshold < 0:
+        raise ValueError("vstd threshold must be non-negative")
+    if velocity.shape != vstd.shape:
+        raise ValueError(
+            f"vstd and velocity shapes differ: {vstd.shape} vs "
+            f"{velocity.shape}"
+        )
+
+    output = velocity.astype(np.float32, copy=True)
+    vel_valid = np.isfinite(velocity)
+    vstd_missing = vel_valid & ~np.isfinite(vstd)
+    over_threshold = vel_valid & np.isfinite(vstd) & (vstd > threshold)
+    kept = vel_valid & np.isfinite(vstd) & (vstd <= threshold)
+
+    output[vstd_missing | over_threshold] = np.nan
+    counts = {
+        "n_over_threshold": int(over_threshold.sum()),
+        "n_missing_vstd": int(vstd_missing.sum()),
+        "n_kept": int(kept.sum()),
+    }
+    return output, counts
+
+
 def los_to_vertical(velocity, incidence_angle_deg=None):
     """
     Project line-of-sight (LOS) velocity to vertical velocity.
@@ -171,12 +261,35 @@ def _stamp_velocity_tags(path, is_vertical):
         ds.update_tags(**tags)
 
 
-def preprocess_insar(velocity_path, coherence_path=None, output_dir=None):
+def _stamp_vstd_tags(path, is_vertical):
+    """Write unit and LOS-scaling metadata into a vstd GeoTIFF."""
+    tags = {
+        "uncertainty_type": "velocity_standard_deviation",
+        "uncertainty_units": "mm/yr",
+        "uncertainty_reference": (
+            "vertical" if is_vertical else "line_of_sight"
+        ),
+    }
+    if is_vertical and INSAR_VELOCITY_IS_LOS:
+        tags["los_to_vertical_applied"] = "true"
+        tags["incidence_angle_deg"] = f"{INSAR_INCIDENCE_ANGLE_DEG:g}"
+        tags["los_to_vertical_factor"] = (
+            f"{1.0 / np.cos(np.radians(INSAR_INCIDENCE_ANGLE_DEG)):.6f}"
+        )
+    else:
+        tags["los_to_vertical_applied"] = "false"
+    with rasterio.open(path, "r+") as ds:
+        ds.update_tags(**tags)
+
+
+def preprocess_insar(velocity_path, coherence_path=None, output_dir=None,
+                     vstd_path=None):
     """
     Full InSAR preprocessing pipeline:
     1. Reproject to common CRS                       -> velocity_reproj.tif
     2. Project LOS velocity to vertical (if enabled) -> velocity_vertical.tif
-    3. Apply coherence mask (if coherence provided)  -> velocity_masked.tif
+    3. Prepare/scale vstd (if provided)              -> vstd_vertical.tif
+    4. Apply coherence and/or vstd masks             -> velocity_masked.tif
 
     Each stage writes a DISTINCT file rather than overwriting in place. This
     keeps the LOS->vertical conversion unambiguous: the reprojected file is
@@ -191,6 +304,8 @@ def preprocess_insar(velocity_path, coherence_path=None, output_dir=None):
         Path to raw velocity GeoTIFF.
     coherence_path : str, optional
         Path to coherence GeoTIFF. If None, no quality masking is applied.
+    vstd_path : str, optional
+        Path to LiCSBAS velocity standard deviation from the same inversion.
     output_dir : str, optional
         Output directory. Defaults to PROC_INSAR_DIR.
 
@@ -207,7 +322,11 @@ def preprocess_insar(velocity_path, coherence_path=None, output_dir=None):
 
     # ── Step 0: Mask undeclared nodata BEFORE any resampling ──────────────
     nodata_masked_path = os.path.join(output_dir, "velocity_nodata_masked.tif")
-    _mask_undeclared_nodata(velocity_path, nodata_masked_path)
+    _mask_undeclared_nodata(
+        velocity_path, nodata_masked_path,
+        sentinels=INSAR_NODATA_VALUES,
+        label="Velocity", coastal_heuristic=True,
+    )
 
     # ── Step 1: Reproject velocity to common CRS (stays in raw LOS units) ──
     # Resampling per INSAR_RESAMPLING: the raw grid (~1 km) is much coarser
@@ -237,27 +356,91 @@ def preprocess_insar(velocity_path, coherence_path=None, output_dir=None):
         # Data is already vertical (or the user has opted out of conversion).
         processed_vel_path = reproj_vel_path
 
-    # ── Step 3: Apply coherence masking if available ──────────────────────
+    # ── Step 3: Prepare uncertainty layer if available ────────────────────
+    vstd_vertical = None
+    if vstd_path is not None:
+        vstd_nodata_path = os.path.join(
+            output_dir, "vstd_nodata_masked.tif"
+        )
+        _mask_undeclared_nodata(
+            vstd_path, vstd_nodata_path,
+            sentinels=INSAR_VSTD_NODATA_VALUES,
+            label="vstd", coastal_heuristic=False,
+        )
+        vstd_reproj_path = os.path.join(output_dir, "vstd_reproj.tif")
+        reproject_raster(
+            vstd_nodata_path, vstd_reproj_path, COMMON_CRS,
+            COMMON_RESOLUTION, resampling=INSAR_RESAMPLING,
+        )
+        vstd_data, vstd_profile = load_vstd_map(vstd_reproj_path)
+        if INSAR_VELOCITY_IS_LOS:
+            vstd_data = los_to_vertical(vstd_data)
+        vstd_vertical_path = os.path.join(output_dir, "vstd_vertical.tif")
+        save_raster(
+            vstd_vertical_path, vstd_data, vstd_profile, nodata=np.nan
+        )
+        _stamp_vstd_tags(
+            vstd_vertical_path, is_vertical=INSAR_VELOCITY_IS_LOS
+        )
+        vstd_vertical = vstd_data
+
+        velocity_for_sweep, _ = load_raster(processed_vel_path)
+        sweep = vstd_survival_sweep(vstd_vertical, velocity_for_sweep)
+        print("vstd survival sweep (finite velocity retained):")
+        for threshold, pct in sweep:
+            print(f"  <= {threshold:g} mm/yr: {pct:.2f}%")
+
+    # ── Step 4: Apply quality masks if available ──────────────────────────
+    vel_data, vel_profile = load_raster(processed_vel_path)
+    quality_mask_applied = False
+
     if coherence_path is not None:
         reproj_coh_path = os.path.join(output_dir, "coherence_reproj.tif")
         reproject_raster(coherence_path, reproj_coh_path, COMMON_CRS,
                          COMMON_RESOLUTION, resampling=INSAR_RESAMPLING)
 
-        vel_data, vel_profile = load_raster(processed_vel_path)
         coh_data, _ = load_raster(reproj_coh_path)
+        if coh_data.shape != vel_data.shape:
+            raise ValueError(
+                f"coherence and velocity shapes differ after reprojection: "
+                f"{coh_data.shape} vs {vel_data.shape}"
+            )
 
-        # Mask pixels with coherence below threshold
-        low_quality = coh_data[0] < COHERENCE_THRESHOLD
+        # Missing coherence cannot establish quality and is masked separately
+        # from already-invalid velocity pixels.
+        velocity_valid = np.isfinite(vel_data[0])
+        low_quality = (
+            ~np.isfinite(coh_data[0])
+            | (coh_data[0] < COHERENCE_THRESHOLD)
+        ) & velocity_valid
         vel_data[0][low_quality] = np.nan
+        quality_mask_applied = True
+        print(
+            f"Masked {low_quality.sum():,} low/missing-coherence pixels "
+            f"(threshold={COHERENCE_THRESHOLD})"
+        )
 
+    if vstd_vertical is not None and INSAR_VSTD_THRESHOLD is not None:
+        vel_data, counts = apply_vstd_mask(
+            vel_data, vstd_vertical, threshold=INSAR_VSTD_THRESHOLD
+        )
+        quality_mask_applied = True
+        print(
+            f"vstd mask (threshold <= {INSAR_VSTD_THRESHOLD:g} mm/yr): "
+            f"kept={counts['n_kept']:,}, "
+            f"over={counts['n_over_threshold']:,}, "
+            f"missing={counts['n_missing_vstd']:,}"
+        )
+
+    if quality_mask_applied:
         masked_path = os.path.join(output_dir, "velocity_masked.tif")
         save_raster(masked_path, vel_data, vel_profile, nodata=np.nan)
-        _stamp_velocity_tags(masked_path,
-                             is_vertical=INSAR_VELOCITY_IS_LOS)
-        print(f"Masked {low_quality.sum():,} low-coherence pixels (threshold={COHERENCE_THRESHOLD})")
+        _stamp_velocity_tags(
+            masked_path, is_vertical=INSAR_VELOCITY_IS_LOS
+        )
         return masked_path
-    else:
-        return processed_vel_path
+
+    return processed_vel_path
 
 
 def categorize_subsidence(velocity_data, thresholds=None):

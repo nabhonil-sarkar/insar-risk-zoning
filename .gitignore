@@ -27,6 +27,14 @@ venv/
 .ipynb_checkpoints/
 *.ipynb_meta
 
+# Generated diagnostics and local QA
+run_log*.txt
+.coverage
+htmlcov/
+coverage.xml
+work/
+scratch/
+
 # OS
 .DS_Store
 Thumbs.db

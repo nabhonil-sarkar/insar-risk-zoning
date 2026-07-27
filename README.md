@@ -93,22 +93,50 @@ of saying the per-pixel map currently classifies noise.
 
 In progress: re-running the LiCSBAS inversion to export the velocity-uncertainty
 layer (`vstd`), then masking pixels whose uncertainty exceeds the classification
-thresholds (`notebooks/LiCSBAS_Jakarta_vstd_rerun.ipynb`). Planned next:
+thresholds (`notebooks/LiCSBAS_Jakarta_vstd_rerun_v4.ipynb`). Planned next:
 validation against published GNSS/levelling benchmarks for Jakarta, and deriving
 cluster exposure from building-density data instead of manual assignment.
+
+**Recovery status (v0.3.2 development):** the uncertainty-layer integration is
+being completed and tested before new LiCSBAS data are ingested. The July 2026
+severity/risk artifacts are diagnostic, noise-limited outputs and must not be
+used as a published risk product. Until exposure is explicitly assigned, the
+pipeline output is a hazard/severity product rather than a final risk product.
+
+The ~1 km InSAR grid is aligned to a 30 m embedding/display grid. The 30 m
+pixels are not independent InSAR measurements; statistical summaries must
+retain native-source support or equivalent weighting.
 
 ## Quick start
 
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
+# Windows PowerShell:
+.\.venv\Scripts\python -m pip install -e ".[dev,earth-engine]"
 
 # place inputs:
 #   data/raw/embeddings/  <- AlphaEarth annual export (see scripts/export_embeddings.py)
-#   data/raw/insar/       <- one LiCSBAS velocity GeoTIFF
+#   data/raw/insar/       <- one matched LiCSBAS stack from the same inversion:
+#                            jakarta_vel_2020_2023.tif
+#                            jakarta_vstd_2020_2023.tif
+#                            jakarta_coh_avg_2020_2023.tif (optional)
+#                            jakarta_n_unw_2020_2023.tif (provenance/QA)
 
-python scripts/run_full_pipeline.py            # full run; later runs reuse valid caches
-python -m pytest tests/                        # test suite
+.\.venv\Scripts\python scripts/run_full_pipeline.py --synthetic --k 4 --no-k-search
+.\.venv\Scripts\python -m pytest tests
 ```
+
+For the exact Windows/Python 3.14 environment validated for this recovery:
+
+```powershell
+.\.venv\Scripts\python -m pip install -r requirements.lock.txt
+.\.venv\Scripts\python -m pip install -e . --no-deps
+```
+
+The LiCSBAS velocity and `vstd` files must come from the same inversion. The
+input discovery refuses multiple candidates and processed-product filenames.
+Use the synthetic command to verify a new installation before processing real
+data.
 
 Useful flags:
 
@@ -120,6 +148,8 @@ Useful flags:
                                 to K-Means if it produces unusable results)
 --k N                   fixed cluster count (skips the silhouette search)
 --synthetic             synthetic InSAR, for exercising the pipeline without data
+--production            require explicit exposure for every cluster; without
+                        this, outputs are diagnostic hazard/severity products
 ```
 
 Outputs land in `data/output/`: cluster and severity rasters, risk-zone raster
@@ -134,6 +164,9 @@ sub-clustering tool.
 |---|---|---|
 | InSAR velocity | Sentinel-1 via COMET-LiCSAR, LiCSBAS SBAS inversion | ~1 km |
 | Land-cover embeddings | Google AlphaEarth (`GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL`), Earth Engine | 30 m (native 10 m) |
+
+See `docs/INSAR_DATA_HANDOFF.md` for the matched-layer naming, validation, and
+provenance contract.
 
 ## Repository layout
 
@@ -152,4 +185,5 @@ docs/                     methodology document
 
 Copyright © 2026 Nabhonil Sarkar. All rights reserved. Provided for reference
 and evaluation; no license is granted for use, modification or distribution.
-For licensing or other inquiries, please get in touch.
+For licensing or other inquiries, please get in touch. Third-party data and
+software remain subject to their own terms; see `THIRD_PARTY_NOTICE.md`.

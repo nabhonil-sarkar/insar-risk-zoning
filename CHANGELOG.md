@@ -2,6 +2,40 @@
 
 All notable changes to the InSAR Risk Zoning pipeline are documented here.
 
+## [Unreleased — 0.3.2 recovery]
+
+Repository-recovery work following the July uncertainty diagnosis and a partial
+local patch:
+
+- Completed the LiCSBAS `vstd` path through nodata normalization,
+  LOS-to-vertical scaling, survival reporting, inclusive uncertainty masking,
+  common-grid alignment, cache dependencies, and pipeline state.
+- Quality masking now counts retained, over-threshold, and missing-uncertainty
+  pixels separately; missing coherence is no longer treated as valid.
+- Cache fingerprints include nodata values, InSAR resampling, and uncertainty
+  settings. Added or removed inputs invalidate a stage, and multi-output stages
+  require their uncertainty products to exist.
+- Auxiliary input discovery refuses multiple coherence, `vstd`, or unwrap-count
+  candidates.
+- Restored bounded dependencies, added project metadata and an installed CLI,
+  and documented the supported Python range.
+- Added and tracked
+  `notebooks/LiCSBAS_Jakarta_vstd_rerun_v4.ipynb`, pinned to a verified COMET
+  fork commit. It resolves scripts defensively, uses the actual
+  `LiCSBAS02_ml_prep.py`, verifies the post-download backup/restore workflow,
+  validates exports, and writes checksums/provenance.
+- Added pipeline-state schema versioning and atomic state writes.
+- Consolidated hard-coded input checks into `scripts/validate_inputs.py`.
+  Removed obsolete diagnostic scripts, the velocity-threshold ROI selector,
+  and the misleading single-tile "merge" placeholder; all remain recoverable
+  from Git history.
+- Expanded the automated suite from 25 tracked baseline tests to 73 passing
+  tests during recovery, including a tiny end-to-end pipeline smoke test.
+
+The July 2026 severity and risk outputs remain diagnostic and noise-limited.
+This release does not claim a validated risk result; new matched
+velocity/uncertainty data and external validation remain required.
+
 ## [0.3.1] — 2026-07-06
 
 Reliability release: fingerprint-validated caching, data-integrity guards, and a

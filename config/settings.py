@@ -53,7 +53,14 @@ ACTIVE_ROI = JAKARTA_ROI
 # EARTH ENGINE EXPORT
 # =============================================================================
 EMBEDDING_COLLECTION_ID = "GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL"
-EMBEDDING_YEARS = [2020, 2023]
+EMBEDDING_YEARS = list(range(2020, 2026))
+# The approved annual-change target is every year from 2020 through 2025.
+# Dataset availability must be checked live before export; as verified on
+# 2026-08-10, the official catalogue currently ends with calendar year 2024.
+EMBEDDING_REFERENCE_YEAR = 2023
+EMBEDDING_REFERENCE_RASTER = os.path.join(
+    RAW_EMBEDDINGS_DIR, "AlphaEarth_Jakarta_Wide_30m_2023.tif"
+)
 # The year the pipeline actually analyzes. With both years' exports present
 # in data/raw/embeddings/, file selection previously took the first sorted
 # glob match — i.e. silently 2020 while the docs said 2023 (review finding

@@ -1,4 +1,0 @@
--r requirements.txt
-
-# Development / tests
-pytest>=8.0

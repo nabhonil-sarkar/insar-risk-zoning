@@ -70,3 +70,23 @@ def test_preprocess_rejects_wrong_band_count(tmp_path, monkeypatch):
         m2.preprocess_embeddings(
             source, output_dir=str(tmp_path / "processed")
         )
+
+
+def test_official_embedding_band_order_is_a00_through_a63():
+    assert m2.EMBEDDING_BANDS == [f"A{i:02d}" for i in range(64)]
+
+
+def test_embedding_change_preserves_invalid_and_zero_vector_mask():
+    first = np.ones((2, 2, 2), dtype=np.float32)
+    second = first.copy()
+    first[:, 0, 1] = 0
+    second[:, 1, 0] = np.nan
+    second[:, 1, 1] = -1
+
+    change = m2.compute_embedding_change(first, second, metric="cosine")
+
+    assert change.shape == (1, 2, 2)
+    assert change[0, 0, 0] == pytest.approx(0)
+    assert np.isnan(change[0, 0, 1])
+    assert np.isnan(change[0, 1, 0])
+    assert change[0, 1, 1] == pytest.approx(2)

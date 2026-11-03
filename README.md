@@ -1,189 +1,163 @@
-# InSAR Subsidence Risk Zoning
+# Jakarta surface change and subsidence context
 
-Mapping ground-subsidence risk in Jakarta by combining satellite radar
-interferometry (InSAR) with learned land-cover representations (Google
-AlphaEarth embeddings).
+A Jakarta research project studying urban change, exposure and subsidence
+evidence. The accepted scope is to analyse **2020–2025 land-surface change
+with AlphaEarth**, audit a published deformation dataset for subsidence context,
+and retain our Sentinel-1 experiments as a relative-pattern case study.
 
-Parts of northern Jakarta are sinking by more than 10 cm/year, driven mainly by
-groundwater extraction. Displacement maps alone don't answer the planning
-question, because risk depends on what sits on the sinking ground: the same
-rate under a dense neighbourhood and under farmland are different problems.
-This pipeline produces risk zones that account for both.
+The question is: where has Jakarta's urban surface changed, and where do those
+changes overlap published subsidence? Comparing different observation periods
+describes spatial overlap; it does not establish causation.
 
-## Approach
+Owner: Nabhonil Sarkar. Repository:
+[nabhonil-sarkar/insar-risk-zoning](https://github.com/nabhonil-sarkar/insar-risk-zoning).
+Study area: approximately 85 × 59 km around Jakarta.
 
-Two independent satellite datasets, deliberately **never fused** into one
-feature space:
+## Status
 
-```
-Stage 1   AlphaEarth embeddings (64-D, 30 m)  ──▶  K-Means  ──▶  land-cover clusters
-                                                                  (no InSAR involved)
-Stage 2   Sentinel-1 InSAR velocity (mm/yr)   ──▶  calibrated, overlaid per cluster
-                                                                  ──▶  subsidence severity
+As of 3 November 2026, **no project-produced deformation, hazard or risk map is
+validated**. The 2023 four-cluster AlphaEarth baseline is usable as surface
+context. The descending InSAR result supports a reference-stable relative LOS
+pattern over 68.39% of North Jakarta, but its zero level is uncertain and
+independent ground validation is missing.
 
-Risk  =  severity × exposure   (per-cluster exposure via an explicit lookup matrix)
-```
+The owner has accepted a public-data route so progress no longer depends on
+unanswered validation emails. Two official AlphaEarth tiles intersect the
+frozen Jakarta grid per year (2020–2025); all 12 headers were verified.
+All **six full-area annual rasters and seven embedding-difference maps** have
+been generated locally; the GeoTIFFs are not distributed in Git. Each comparison
+has 5,619,719 joint in-ROI cells. Decoded GCS 2023
+matches the frozen baseline exactly throughout the ROI; the legacy export
+also retained 2,650 valid exterior cells. Differences are not labelled development.
+The published Java source passed its file check. Screening leaves 48,883
+distinct mainland Jakarta locations for contextual analysis, not a continuous
+deformation layer. Across all 93 relevant Wayback releases, the frozen 300-patch
+benchmark has paired imagery candidates in only 16 development blocks (20
+required). A separate Pléiades footprint search suggests broader coverage,
+but the project lacks full-resolution review access. Neither model was scored.
+The benchmark is parked. Next: define how to group published subsidence points
+and report coverage before comparing them with the embedding differences.
+Verification: 166 tests passed with the local archive; a clean checkout passed
+165 and skipped only the real-data v13 regression.
 
-The obvious alternative — concatenating the 64 embedding dimensions with the
-1 velocity dimension and clustering the 65-D space — lets the embeddings drown
-the velocity signal in any distance-based algorithm, regardless of weighting.
-Keeping the stages separate means land cover is discovered on its own terms and
-velocity remains a physically interpretable overlay. A side benefit surfaced in
-practice: when a corrupted velocity file entered the pipeline, the clustering
-was unaffected, because InSAR never touches Stage 1.
+See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for the authoritative next actions,
+scientific rules and blockers, and [CHANGELOG.md](CHANGELOG.md) for milestones
+and artifact checksums.
 
-**Study area:** Jakarta metropolitan area, ~85 × 59 km. **Scale:** 5.6 M valid
-pixels at 30 m; InSAR from 4 years of Sentinel-1 acquisitions (LiCSBAS SBAS
-inversion, ~1 km effective resolution).
+## Approach and inputs
 
-## Design notes
+The information streams remain separate:
 
-Decisions that shaped the implementation, with the reasoning:
+- **AlphaEarth:** all 64 embedding axes describe surface context and annual
+  differences on the frozen 2023 grid. Added value over ordinary vegetation
+  and built-up predictors remains untested.
+- **Deformation:** audit published vertical/east–west motion, including its
+  period, reference frame, coverage, uncertainty and duplicate coordinates.
+  Our own unvalidated LOS results remain a separately labelled case study.
+- **Exposure:** interpret buildings, population and infrastructure using
+  explicit evidence. Risk claims require adequate hazard validation and
+  exposure evidence.
 
-- **Fingerprint-validated caching.** Every expensive stage writes a sidecar
-  recording a hash of the settings it depends on, its resolved CLI parameters,
-  and the identity (size + mtime) of each input file. A cached output is reused
-  only if all three match; any mismatch logs the changed key and recomputes.
-  Plain existence-checking had already caused silent reuse of stale results —
-  e.g. a `--k 4` run picking up a six-cluster file.
+| Source | Role |
+|---|---|
+| [AlphaEarth annual embeddings](https://developers.google.com/earth-engine/guides/aef_on_gcs_readme) | 2020–2025 target; native 10 m, frozen local analysis grid 30 m |
+| [Java VLM/EW](https://zenodo.org/records/15786357) | Candidate published 2017–2023 deformation and uncertainty |
+| [Sinking City](https://zenodo.org/records/19456870) | Candidate urban-context/comparison layers |
+| COMET-LiCSAR / LiCSBAS | Archived processing experiments and relative LOS evidence |
 
-- **Fail loudly on suspicious input.** The ingestion refuses to run if the raw
-  data directory contains files with processed-product names (`calibrated`,
-  `aligned`, `masked`, …), if more than one velocity candidate exists, or if a
-  "raw" coastal file contains implausibly little nodata. Each guard corresponds
-  to a failure mode that actually occurred or nearly did.
+Embeddings do not measure displacement. LOS is not automatically vertical;
+30 m display cells are not independent InSAR measurements. Historical July
+risk products and failed experiments are diagnostic only.
 
-- **Geodesy handled explicitly.** Line-of-sight velocities are projected to
-  vertical (v / cos θ, ~1.29× at this frame's incidence angle) before any
-  thresholding; conversion state is stamped into GeoTIFF tags so a file's units
-  are never ambiguous. Nodata is masked to NaN *before* resampling, and the
-  ~1 km InSAR product is placed on the 30 m grid with nearest-neighbour
-  resampling — interpolation would manufacture values that were never measured.
+## Local setup and verification
 
-- **Calibration with self-checks.** InSAR velocities are relative; the pipeline
-  anchors them by identifying the most internally consistent land-cover cluster
-  as the stable reference. Because a low-variance cluster could itself be
-  deforming, the calibration warns when the shift exceeds a configurable bound
-  and reports the spread across the top reference candidates as an explicit
-  uncertainty.
+Supported Python: 3.12–3.14. From the repository root in PowerShell:
 
-- **Classification that cannot fail silently.** Severity bins are half-open
-  intervals covering the entire real line, pixels start unclassified rather
-  than defaulting to "stable", and the classifier raises if any finite velocity
-  escapes the bins. An earlier version classified the fastest-sinking pixels
-  (< −100 mm/yr) as stable because of a gap in the bins; the regression test
-  for that exact case is in the suite.
-
-- **Coverage reported alongside risk.** Per-cluster statistics use only pixels
-  with valid velocity and publish the coverage percentage, so a cluster rated
-  from 3% coverage (open water, where InSAR decorrelates) is visibly
-  distinguishable from one rated from 95%.
-
-## Current status
-
-Honest assessment as of v0.3.1: the pipeline machinery is sound, and the
-per-cluster medians tell a physically coherent story (the dense-urban cluster
-at −17 mm/yr, the stable reference at ~0). But **pixel-level severity is
-currently noise-limited** — the source LiCSBAS run used a relaxed noise
-threshold to preserve coverage under tropical decorrelation, and the resulting
-per-pixel scatter (σ ≈ 40 mm/yr) exceeds the ±25 mm/yr classification
-thresholds. The observed severity distribution is reproduced by a single
-Gaussian to within a percentage point per class, which is the statistical way
-of saying the per-pixel map currently classifies noise.
-
-In progress: re-running the LiCSBAS inversion to export the velocity-uncertainty
-layer (`vstd`), then masking pixels whose uncertainty exceeds the classification
-thresholds (`notebooks/LiCSBAS_Jakarta_vstd_rerun_v4.ipynb`). Planned next:
-validation against published GNSS/levelling benchmarks for Jakarta, and deriving
-cluster exposure from building-density data instead of manual assignment.
-
-**Recovery status (v0.3.2 development):** the uncertainty-layer integration is
-being completed and tested before new LiCSBAS data are ingested. The July 2026
-severity/risk artifacts are diagnostic, noise-limited outputs and must not be
-used as a published risk product. Until exposure is explicitly assigned, the
-pipeline output is a hazard/severity product rather than a final risk product.
-
-The ~1 km InSAR grid is aligned to a 30 m embedding/display grid. The 30 m
-pixels are not independent InSAR measurements; statistical summaries must
-retain native-source support or equivalent weighting.
-
-## Quick start
-
-```bash
+```powershell
 python -m venv .venv
-# Windows PowerShell:
-.\.venv\Scripts\python -m pip install -e ".[dev,earth-engine]"
-
-# place inputs:
-#   data/raw/embeddings/  <- AlphaEarth annual export (see scripts/export_embeddings.py)
-#   data/raw/insar/       <- one matched LiCSBAS stack from the same inversion:
-#                            jakarta_vel_2020_2023.tif
-#                            jakarta_vstd_2020_2023.tif
-#                            jakarta_coh_avg_2020_2023.tif (optional)
-#                            jakarta_n_unw_2020_2023.tif (provenance/QA)
-
-.\.venv\Scripts\python scripts/run_full_pipeline.py --synthetic --k 4 --no-k-search
+.\.venv\Scripts\python -m pip install -e ".[dev]"
 .\.venv\Scripts\python -m pytest tests
 ```
 
-For the exact Windows/Python 3.14 environment validated for this recovery:
+For the previously validated Windows/Python 3.14 environment, install
+`requirements.lock.txt`, then install the project with `-e . --no-deps`.
+For a data-free end-to-end smoke test, run `python -m pytest tests/test_pipeline_smoke.py`
+in the project environment. The pipeline CLI's `--synthetic` flag replaces only
+the InSAR input; it still requires local embeddings. The real v13 footprint
+regression runs only with its local audit bundle.
+Earth Engine export optionally requires `.[earth-engine]`, authentication
+and an approved Cloud project. The GCS route needs neither. With the locked
+environment, frozen 2023 reference and registered pilot evidence present:
 
 ```powershell
-.\.venv\Scripts\python -m pip install -r requirements.lock.txt
-.\.venv\Scripts\python -m pip install -e . --no-deps
+.\.venv\Scripts\python -m scripts.build_alphaearth_full_grid
+.\.venv\Scripts\python -m scripts.audit_alphaearth_full_2023
+.\.venv\Scripts\python -m scripts.alphaearth_full_grid_change
+.\.venv\Scripts\python -m scripts.render_alphaearth_change
 ```
 
-The LiCSBAS velocity and `vstd` files must come from the same inversion. The
-input discovery refuses multiple candidates and processed-product filenames.
-Use the synthetic command to verify a new installation before processing real
-data.
+Outputs: `data/output/alphaearth_annual_change/gcs_full_v1/`. The builder resumes
+verified byte ranges and completed years, starting with 2023. Annual rasters
+store **encoded int8**, not analysis-ready floats: mask −128, then decode each
+axis as `sign(q)*(q/127.5)**2`. The comparison command does this before computing
+cosine distance. Diagnostic outputs are write-once. Source generations, pilot
+protocols and artifact hashes are in the changelog and manifests.
 
-Useful flags:
+Published-source helpers: `scripts.fetch_published_java`,
+`scripts.audit_published_java`, then `scripts.audit_published_java_dki`.
 
-```
---force                 recompute everything
---force-from STAGE      recompute a stage and everything downstream
-                        (m2 → m1 → m3 → m4 → cal → m4b → m5)
---method {kmeans,gmm,hdbscan}   clustering algorithm (HDBSCAN auto-falls back
-                                to K-Means if it produces unusable results)
---k N                   fixed cluster count (skips the silhouette search)
---synthetic             synthetic InSAR, for exercising the pipeline without data
---production            require explicit exposure for every cluster; without
-                        this, outputs are diagnostic hazard/severity products
-```
+Interpretation benchmark: run `scripts.urban_change_benchmark register` then
+`select` as Python modules before imagery inspection. The companion modules
+`scripts.audit_urban_reference`, `scripts.inventory_urban_baseline` and
+`scripts.check_urban_benchmark_support` audit availability without assigning
+labels. Frozen local outputs: `data/output/urban_benchmark_v1/`. The separate
+`scripts.expand_urban_wayback` module supports `register`, `audit` and read-only
+`verify`. The `scripts.scout_pleiades_footprints` module (`register`, `audit`)
+checks public scene footprints only; its output cannot unlock model scoring.
 
-Outputs land in `data/output/`: cluster and severity rasters, risk-zone raster
-and vector (GeoPackage), per-cluster statistics (CSV), figures, a text report,
-a timestamped log, and `pipeline_state.json` — a machine-readable record of
-paths, configuration and per-cluster results consumed by the downstream
-sub-clustering tool.
+Existing helpers:
 
-## Data
-
-| Dataset | Source | Resolution |
-|---|---|---|
-| InSAR velocity | Sentinel-1 via COMET-LiCSAR, LiCSBAS SBAS inversion | ~1 km |
-| Land-cover embeddings | Google AlphaEarth (`GOOGLE/SATELLITE_EMBEDDING/V1/ANNUAL`), Earth Engine | 30 m (native 10 m) |
-
-See `docs/INSAR_DATA_HANDOFF.md` for the matched-layer naming, validation, and
-provenance contract.
-
-## Repository layout
-
-```
-config/settings.py        every tunable parameter, fingerprint-tracked
-src/m1 … m5               ingestion → alignment → clustering → overlay → risk
-src/utils/stage_cache.py  cache fingerprinting
-scripts/run_full_pipeline.py
-scripts/subcluster_analysis.py   splits the highest-risk cluster into sub-populations
-notebooks/                LiCSBAS processing (Colab)
-tests/                    severity classifier, alignment, cache invalidation
-docs/                     methodology document
+```powershell
+.\.venv\Scripts\python scripts\prepare_alphaearth_annual_change.py
+.\.venv\Scripts\python scripts\validate_inputs.py --json data\output\input_validation.json
 ```
 
-## License
+The contract builder records the frozen baseline; its historical availability
+metadata must be versioned for the new acquisition route. Input validation needs
+real matched inputs and may fail until they are supplied. Synthetic output
+exercises software only.
+
+## Code and operation
+
+Configuration is in `config/settings.py`; processing in `src/`; acquisition,
+pipeline entry points and experiment audits in `scripts/`; Colab experiments
+in `notebooks/`; regression checks in `tests/`. Outputs and provenance go to
+`data/output/`, including rasters, GeoPackage, statistics, figures, reports,
+logs and `pipeline_state.json`.
+
+The existing pipeline supports `--force`, `--force-from STAGE`,
+`--method {kmeans,gmm,hdbscan}` and `--k N`. Stage order is
+`m2 -> m1 -> m3 -> m4 -> cal -> m4b -> m5`. Production mode requires
+explicit cluster exposure; this software guard does not establish scientific
+validation.
+
+Raw embeddings belong in `data/raw/embeddings/`. The LiCSBAS input contract
+reserves `data/raw/insar/` for matched `vel`, `vstd`, optional
+`coh_avg`, and QA `n_unw` layers plus provenance from one inversion.
+It rejects ambiguous or processed inputs. Published VLM requires its own
+explicit adapter; do not pass it through assumed LOS conversion.
+
+Fingerprint caching, nodata handling, complete severity bins and coverage
+reporting protect against known failures. Failed notebooks and archived inputs
+remain reproducibility evidence. Documentation responsibilities are defined in
+[AGENTS.md](AGENTS.md); the single methodology is under `docs/`.
+
+## Attribution and license
+
+“The AlphaEarth Foundations Satellite Embedding dataset is produced by Google
+and Google DeepMind.” Respect each source's license and attribution.
 
 Copyright © 2026 Nabhonil Sarkar. All rights reserved. Provided for reference
 and evaluation; no license is granted for use, modification or distribution.
-For licensing or other inquiries, please get in touch. Third-party data and
-software remain subject to their own terms; see `THIRD_PARTY_NOTICE.md`.
+For licensing inquiries, contact the owner. Third-party terms remain separate;
+see [THIRD_PARTY_NOTICE.md](THIRD_PARTY_NOTICE.md).

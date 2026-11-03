@@ -1,0 +1,5 @@
+# Preserve exact archived notebook bytes (mixed historical line endings).
+*.ipynb -text whitespace=trailing-space,cr-at-eol
+*.py text eol=lf
+# Intentional Markdown hard breaks in a checksum-registered letter template.
+scripts/build_v13_ground_validation_package.py whitespace=-blank-at-eol

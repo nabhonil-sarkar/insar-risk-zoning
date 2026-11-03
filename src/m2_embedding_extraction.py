@@ -20,8 +20,8 @@ from config.settings import (
 )
 
 
-# AlphaEarth band names: A01 through A64
-EMBEDDING_BANDS = [f"A{i:02d}" for i in range(1, 65)]
+# Official AlphaEarth band names: A00 through A63.
+EMBEDDING_BANDS = [f"A{i:02d}" for i in range(64)]
 N_EMBEDDING_DIMS = 64
 
 
@@ -201,18 +201,21 @@ def compute_embedding_change(data_year1, data_year2, metric="cosine"):
 
     flat1 = data_year1.reshape(bands, -1).T  # (n_pixels, 64)
     flat2 = data_year2.reshape(bands, -1).T
+    joint_finite = np.isfinite(flat1).all(axis=1) & np.isfinite(flat2).all(axis=1)
+    change = np.full(flat1.shape[0], np.nan, dtype=np.float32)
 
     if metric == "cosine":
-        dot = np.sum(flat1 * flat2, axis=1)
         norm1 = np.linalg.norm(flat1, axis=1)
         norm2 = np.linalg.norm(flat2, axis=1)
-        denom = norm1 * norm2
-        denom[denom == 0] = 1
-        cos_sim = dot / denom
-        change = 1 - cos_sim  # 0 = no change, higher = more change
+        valid = joint_finite & (norm1 > 0) & (norm2 > 0)
+        dot = np.sum(flat1[valid] * flat2[valid], axis=1)
+        cos_sim = np.clip(dot / (norm1[valid] * norm2[valid]), -1.0, 1.0)
+        change[valid] = 1.0 - cos_sim  # 0 = no change, 2 = opposite
 
     elif metric == "euclidean":
-        change = np.linalg.norm(flat1 - flat2, axis=1)
+        change[joint_finite] = np.linalg.norm(
+            flat1[joint_finite] - flat2[joint_finite], axis=1
+        )
 
     else:
         raise ValueError(f"Unknown metric: {metric}")

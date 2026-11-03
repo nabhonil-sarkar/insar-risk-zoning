@@ -11,6 +11,11 @@ required attribution, redistribution limits, and commercial-use conditions for:
 - COMET-LiCSAR products and services;
 - the COMET-LiCSBAS fork and its dependencies;
 - GNSS/levelling validation sources;
+- [Published Java vertical and east–west motion](https://zenodo.org/records/15786357)
+  (Ohenhen et al.; CC BY 4.0);
+- Sentinel-2 Level-2A catalogue metadata, Esri World Imagery Wayback, and the
+  Airbus Pléiades footprint catalogue. Catalogue access does not grant rights
+  to redistribute full-resolution imagery;
 - every building, population, or exposure dataset added later.
 
 The release data manifest should record the source URL, access date, dataset

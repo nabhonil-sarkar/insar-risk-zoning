@@ -147,8 +147,7 @@ explicit adapter; do not pass it through assumed LOS conversion.
 
 Fingerprint caching, nodata handling, complete severity bins and coverage
 reporting protect against known failures. Failed notebooks and archived inputs
-remain reproducibility evidence. Documentation responsibilities are defined in
-[AGENTS.md](AGENTS.md); the single methodology is under `docs/`.
+remain reproducibility evidence. The project methodology is under `docs/`.
 
 ## Attribution and license
 

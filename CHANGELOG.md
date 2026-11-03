@@ -113,8 +113,7 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 - Shortened context to live decisions, README to public scope/setup, and this
   file to milestones, frozen controls and the complete existing checksum
   registry. Folded the 34-item challenge register into the relevant entries.
-  AGENTS now requires updates only when relevant facts change. No new status
-  file, software change or methodology edit. Documentation checks do not rerun
+  No new status file, software change or methodology edit. Documentation checks do not rerun
   or supersede the last recorded **134 passing tests**.
 
 The three 2025 candidates share prefix

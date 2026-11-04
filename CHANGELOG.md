@@ -8,7 +8,7 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 
 - Added array-only AlphaEarth tile-seam and northwest-exclusion diagnostics.
   Nine synthetic test cases passed on 5 November 2026, including planted
-  steps, control ties and insufficient support. No real seam result yet.
+  steps, control ties and insufficient support.
 - Added a write-once seam runner with pinned manifests, map and WorldCover
   hashes, per-year seam geometry checks and clean-commit provenance. Runner
   verification used synthetic inputs only.
@@ -18,6 +18,46 @@ execution instructions. Artifact hashes are recorded once in the registry below.
   distinguish local research outputs from files distributed by Git. The model
   comparison is parked: the owner has no full-resolution Pléiades access.
   Verification: 166 tests passed locally; 165 passed and one skipped without data.
+
+### 2026-11-05 — registered Jakarta tile-seam test and endpoint sensitivity
+
+Owner approved v2 SHA-256 `fec005c9b413df6ddcb197746c188183fec9f671743e53fca65a394e927b735d`.
+Before execution, the full suite passed locally on Windows with study data:
+183 passed, none skipped (Python 3.14.5, 37.25 s). Clean execution commit:
+`ed87fd936daacb7609981296dfcd87612e1d3067`. Write-once local evidence:
+`data/output/alphaearth_seam_v2/results.json`, SHA-256
+`763bfa06a8f74e823a91b056c0c856f550f0d8cff4ce124c18c2238c1b82920b`.
+
+| Comparison | All valid cells | 2020 land | 2020 water |
+|---|---|---|---|
+| 2020–2021 | Not flagged | Not flagged | Inconclusive |
+| 2021–2022 | Not flagged | Not flagged | Inconclusive |
+| 2022–2023 | Not flagged (primary) | Not flagged | Inconclusive |
+| 2023–2024 | Not flagged | Not flagged | Inconclusive |
+| 2024–2025 | Not flagged | Not flagged | Inconclusive |
+| 2020–2025 endpoint | Not flagged (primary) | Not flagged | Inconclusive |
+
+All-cell tests retained 28 segments and 20 controls; land retained 26 and 20.
+Only two water segments met the 60-cells-per-side minimum; six were required.
+For 2022–2023, the signed median east-minus-west contrast was −0.0000190
+(cosine distance), weaker in absolute value than all 20 controls; sign
+consistency was 50%. For the endpoint it was +0.001095, stronger than 11/20
+controls, with 57.1% consistency. Neither met the frozen joint rule.
+There was no unusually sharp, consistent step at the tested width (120 m
+per side) on estimable comparisons; changes shared by both tiles remain possible.
+
+**Endpoint headline sensitivity (all valid cells).** Of the original 18,096
+northwest extreme cells, 254 (1.40%) were west of the seam and 17,842
+(98.60%) were east. Removing the entire western sliver across all sectors:
+
+| Population / ranking | Top-1% cutoff | NW share of extremes | NW share of valid cells | NW enrichment | Change from original |
+|---|---:|---:|---:|---:|---:|
+| Original | 0.35809202 | 18,096/56,198 (32.20%) | 624,512/5,619,719 (11.11%) | 2.898× | — |
+| East, original cutoff | 0.35809202 | 17,842/54,122 (32.97%) | 550,367/5,393,794 (10.20%) | 3.231× | +0.766 pp |
+| East, re-ranked | 0.35854378 | 17,793/53,938 (32.99%) | 550,367/5,393,794 (10.20%) | 3.233× | +0.787 pp |
+
+The northwest concentration persists without the western sliver. Neither test
+identifies its cause, validates physical change or explains the 2022–2023 jump.
 
 ### 2026-11-03 — exhaustive Wayback search and separate Pléiades footprint check
 

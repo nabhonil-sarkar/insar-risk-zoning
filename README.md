@@ -101,8 +101,12 @@ axis as `sign(q)*(q/127.5)**2`. The comparison command does this before computin
 cosine distance. Diagnostic outputs are write-once. Source generations, pilot
 protocols and artifact hashes are in the changelog and manifests.
 
-For the local v2 tile-seam diagnostic, first obtain approval for the exact
-registered protocol. Only then use `python -m scripts.run_alphaearth_tile_seam`
+The approved v2 seam diagnostic found no unusual sharp boundary step in either
+primary comparison. All water-only checks were inconclusive. The northwest
+retained 33.0% of the re-ranked endpoint extremes after excluding the western
+tile sliver (32.2% before exclusion); this does not establish physical change.
+See the [changelog](CHANGELOG.md#2026-11-05--registered-jakarta-tile-seam-test-and-endpoint-sensitivity)
+for all outcomes. The completed write-once run used `python -m scripts.run_alphaearth_tile_seam`
 with `--worldcover PATH` and `--approved-protocol-sha256 HASH` from a clean
 checkout containing the frozen inputs. It verifies every manifest-listed map
 before raster decoding and writes a single non-overwritable `results.json`

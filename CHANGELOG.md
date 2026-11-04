@@ -9,6 +9,9 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 - Added array-only AlphaEarth tile-seam and northwest-exclusion diagnostics.
   Nine synthetic test cases passed on 5 November 2026, including planted
   steps, control ties and insufficient support. No real seam result yet.
+- Added a write-once seam runner with pinned manifests, map and WorldCover
+  hashes, per-year seam geometry checks and clean-commit provenance. Runner
+  verification used synthetic inputs only.
 
 - Repository publication cleanup: preserve frozen notebook bytes across platforms,
   make the v13 real-data test optional only when its local bundle is absent, and

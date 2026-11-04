@@ -101,6 +101,14 @@ axis as `sign(q)*(q/127.5)**2`. The comparison command does this before computin
 cosine distance. Diagnostic outputs are write-once. Source generations, pilot
 protocols and artifact hashes are in the changelog and manifests.
 
+For the local v2 tile-seam diagnostic, first obtain approval for the exact
+registered protocol. Only then use `python -m scripts.run_alphaearth_tile_seam`
+with `--worldcover PATH` and `--approved-protocol-sha256 HASH` from a clean
+checkout containing the frozen inputs. It verifies every manifest-listed map
+before raster decoding and writes a single non-overwritable `results.json`
+beside the protocol, including the executing Git commit. To test the runner
+without study data, use `python -m pytest tests/test_run_alphaearth_tile_seam.py`.
+
 Published-source helpers: `scripts.fetch_published_java`,
 `scripts.audit_published_java`, then `scripts.audit_published_java_dki`.
 

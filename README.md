@@ -13,9 +13,12 @@ Owner: Nabhonil Sarkar. Repository:
 [nabhonil-sarkar/insar-risk-zoning](https://github.com/nabhonil-sarkar/insar-risk-zoning).
 Study area: approximately 85 × 59 km around Jakarta.
 
+[Read the illustrated case study (PDF)](docs/Nabhonil_Sarkar_Jakarta_Surface_Change_2020-2025.pdf) ·
+[Technical methodology (Word)](docs/InSAR_Subsidence_Risk_Zoning_Methodology.docx).
+
 ## Status
 
-As of 3 November 2026, **no project-produced deformation, hazard or risk map is
+As of 5 November 2026, **no project-produced deformation, hazard or risk map is
 validated**. The 2023 four-cluster AlphaEarth baseline is usable as surface
 context. The descending InSAR result supports a reference-stable relative LOS
 pattern over 68.39% of North Jakarta, but its zero level is uncertain and
@@ -35,10 +38,11 @@ deformation layer. Across all 93 relevant Wayback releases, the frozen 300-patch
 benchmark has paired imagery candidates in only 16 development blocks (20
 required). A separate Pléiades footprint search suggests broader coverage,
 but the project lacks full-resolution review access. Neither model was scored.
-The benchmark is parked. Next: define how to group published subsidence points
-and report coverage before comparing them with the embedding differences.
-Verification: 166 tests passed with the local archive; a clean checkout passed
-165 and skipped only the real-data v13 regression.
+The benchmark is parked. The remaining annual-jump question concerns differences
+across surface types and independent dated observations. Before comparing
+published subsidence, define spatial units and minimum observation support.
+Verification: 183 tests passed locally with project data before the seam run;
+this is not a count from a data-free checkout.
 
 See the [changelog](CHANGELOG.md) for milestones and artifact checksums.
 
@@ -80,7 +84,8 @@ python -m venv .venv
 For the previously validated Windows/Python 3.14 environment, install
 `requirements.lock.txt`, then install the project with `-e . --no-deps`.
 For a data-free end-to-end smoke test, run `python -m pytest tests/test_pipeline_smoke.py`
-in the project environment. The pipeline CLI's `--synthetic` flag replaces only
+in the project environment. The installed `insar-risk-zoning` command is the
+legacy clustering/overlay pipeline, not the annual workflow below. Its `--synthetic` flag replaces only
 the InSAR input; it still requires local embeddings. The real v13 footprint
 regression runs only with its local audit bundle.
 Earth Engine export optionally requires `.[earth-engine]`, authentication

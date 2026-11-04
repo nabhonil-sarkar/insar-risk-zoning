@@ -1115,7 +1115,7 @@ def cli(argv=None):
     """Command-line entry point used by the script and installed package."""
     _configure_console_utf8()
     parser = argparse.ArgumentParser(
-        description="InSAR-Informed Subsidence Risk Zoning Pipeline",
+        description="LEGACY: clustering and InSAR overlay. This command does not build the current annual surface-change maps; see the README annual workflow.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
@@ -1187,6 +1187,8 @@ def cli(argv=None):
     )
 
     args = parser.parse_args(argv)
+    print("LEGACY workflow: historical InSAR overlay, not a validated risk product. "
+          "For annual surface-change maps, see the README.", file=sys.stderr)
     main(
         force=args.force,
         force_from=args.force_from,

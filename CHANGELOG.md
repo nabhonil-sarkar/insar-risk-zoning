@@ -6,6 +6,11 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 
 ## [Unreleased — 0.3.2 recovery]
 
+- Restructured the illustrated case study and revised the sole methodology
+  for the annual surface-change scope. Annual panels retain their pooled
+  display cap; captions now state per-panel saturation. Labelled the legacy
+  overlay command in help and on invocation without changing its stages.
+
 - Added array-only AlphaEarth tile-seam and northwest-exclusion diagnostics.
   Nine synthetic test cases passed on 5 November 2026, including planted
   steps, control ties and insufficient support.

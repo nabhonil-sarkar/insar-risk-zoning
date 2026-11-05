@@ -52,22 +52,23 @@ deformation layer. Across all 93 relevant Wayback releases, the frozen 300-patch
 benchmark has paired imagery candidates in only 16 development blocks (20
 required). A separate Pléiades footprint search suggests broader coverage,
 but the project lacks full-resolution review access. Neither model was scored.
-The benchmark is parked. The remaining annual-jump question concerns differences
-across surface types and independent dated observations. Before comparing
+The benchmark is parked. The approved surface-type diagnostic now finds a
+broad 2022–2023 elevation across baseline classes and sectors, with varying
+magnitude. Its physical cause still needs independent dated observations. Before comparing
 published subsidence, define spatial units and minimum observation support.
-Verification: 183 tests passed locally with project data before the seam run;
-this is not a count from a data-free checkout. GitHub Actions also runs automated
+Verification: 270 tests passed locally with project data before coastal execution
+on 5 November 2026; this is not a count from a data-free checkout. GitHub Actions also runs automated
 checks; data-dependent tests may skip when local inputs are absent.
 
 See the [changelog](CHANGELOG.md) for milestones and artifact checksums.
 
-## Next phase (planned, not executed)
+## Next phase (Phase A complete; bounded coastal pilot approved)
 
 The next goal is to explain observable surface differences before attempting
 broader risk interpretation:
 
-1. Compare all five annual transitions by **2020 baseline surface class** and
-   geographic sector, starting with the widespread 2022–2023 jump. Existing
+1. Completed the comparison of all five annual transitions by **2020 baseline
+   surface class** and geographic sector for owner review. Existing
    WorldCover classes describe the baseline, not proven unchanged surfaces.
 2. Test a small **2020–2025 coastal land–water pilot** using repeated public
    optical observations. First establish clear-image support, then assess
@@ -82,12 +83,37 @@ expansion. Insufficient observations lead to a documented stop, not weaker
 thresholds. The existing model-comparison benchmark stays parked; no new radar
 rerun or risk-map release is planned. The accepted report remains unchanged.
 
-Phase A preparation is complete locally: input provenance, geometry and baseline
-class support were inventoried, and a write-once diagnostic protocol was proposed.
-The exact protocol hash was approved on 5 November; real execution is next. The new
-array statistics and gated runner passed synthetic checks; the full local suite
-passed 215 tests with none skipped on 5 November 2026. Input support counts are
-not evidence of physical change. See the changelog for protocol and evidence hashes.
+The approved Phase A diagnostic ran once on 5 November, using 5,619,719 jointly
+valid cells with no support loss. Across all nine observed baseline classes,
+2022–2023 has a larger median than each other annual transition. All 64 supported
+class-by-sector groups also have positive median cell-paired contrasts against
+each of the four alternatives (256/256 descriptive contrasts). Magnitudes vary;
+this breadth is compatible with a shared observation/product influence but does
+not prove one or establish physical change. Nine sparse and 26 empty class-sector
+groups remain explicit; all 681 mangrove-labelled cells occur in the N study
+sector. Baseline labels do not prove locations stayed unchanged.
+
+The complete local output is `data/output/alphaearth_surface_type_v1/run/`:
+support, transition and contrast tables, JSON provenance, a summary and two
+figures. Its approved runner requires a clean commit and verified input hashes,
+and refuses to overwrite the run. The owner subsequently authorized Phase B
+feasibility and protocol preparation; coastal acquisition and published-data
+overlay have not started. See the
+changelog for all class medians, limitations and artifact hashes.
+
+The approved coastal pilot uses four 1 km coastal windows and two controls
+selected from 2020 WorldCover geometry, with 96 fixed Sentinel-2 dates across
+2020–2025. Public catalogue/XML/TIFF-header checks support a bounded acquisition:
+1.70 GiB of required compressed blocks, a 3 GiB transfer ceiling and 7 GiB disk
+reservation. Clear-pixel support remains unmeasured. The Planetary Computer
+route requires verified per-product reflectance offsets and retains mixed
+processing baselines; it is not a uniformly reprocessed archive. The separate
+protocol fixes masking, temporal support, persistence, sensitivity and stopping
+rules. The owner approved the exact protocol and acquisition ceiling on 5 November.
+The execution runner verifies all sources before pixel requests, enforces the
+total byte/time budget and stops at a failed temporal-support gate. The adopted
+design is in the sole methodology; no scale-up or published overlay is authorized.
+Local protocol/approval/evidence: `data/output/coastal_transition_pilot_v1/`.
 
 ## Approach and inputs
 

@@ -6,6 +6,71 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 
 ## [Unreleased — 0.3.2 recovery]
 
+### 2026-11-05 — approved coastal execution safeguards and methodology adoption
+
+- Owner approved the exact coastal v1 protocol recorded below, a 3 GiB total
+  acquisition cap including metadata/retries, 7 GiB initial free disk and a
+  two-hour limit. Approval is separate, immutable local evidence. No push,
+  broader acquisition, scale-up or Phase C is authorized.
+- Added a fail-closed runner with local input/approval/test/clean-commit gates,
+  whole-selection ETag and actual GeoTIFF geometry checks before pixels,
+  explicit byte-range requests, shared conservative byte accounting, bounded
+  retries and cancellation after failures. Compact local partial TIFFs retain
+  native compressed blocks without remote GDAL reads or full-file fallback.
+  Complete seasons are acquired in date order; the first failed temporal-support
+  gate stops further acquisition and yields coverage-only output. Unknown and
+  unacquired periods remain explicit; no replacement dates/sites are available.
+- Added geodesic areas, all fixed sensitivity/persistence gates, bounded output
+  and dated-review generation. Synthetic tests cover planted transitions,
+  transient/unknown states, every numerical gate boundary, source mutation,
+  calibration, byte/time limits, retries, disk/test/clean-state requirements and
+  lossless native block reconstruction.
+- Updated only the sole methodology for the adopted design. Seven pages were
+  rendered with local Word and bundled Poppler and visually reviewed; the
+  packaged renderer lacked LibreOffice. The accepted report, Phase A result and
+  seam evidence are unchanged. Full local suite: **270 passed, none skipped**,
+  Python 3.14.5, Windows, 5 November 2026 (19.62 s), before any pilot pixels.
+  Execution verification and the actual clean commit are recorded in the
+  excluded pilot namespace; scientific outcomes belong to a subsequent entry.
+
+### 2026-11-05 — coastal feasibility inventory and proposed protocol
+
+- Owner authorized Phase B preparation after Phase A. Selected four coastal
+  and two control windows, each a 1 km square with a 160 m read halo, using
+  the pinned WorldCover 2020 geometry within the original NW sector. No
+  embedding scores or newly acquired optical pixels informed selection.
+- Audited two public catalogues for all six years. Earth Search Collection 1
+  returns only six 2022 items here; the PC PB>=05 subset has no 2020/2021
+  items. Preserved both findings rather than silently claiming a uniform
+  reprocessed series. Proposed one Planetary Computer route with per-product
+  XML calibration across mixed processing baselines; this aligns DN encoding,
+  not atmospheric/cloud/geolocation algorithms. Separate cloud probabilities
+  are unavailable on this route; the proposed mask uses SCL explicitly.
+- Selected 96 scenes: eight per Jan–Apr and Jun–Sep season in each year
+  2020–2025. Verified all 96 product XMLs and 576 native TIFF headers using
+  metadata-only requests. Required native block payload: 1,826,900,348 bytes
+  (1.70 GiB), proposed transfer ceiling 3 GiB, free disk 7 GiB, acquisition
+  time estimate 10–60 minutes with a two-hour cap. No optical pixel bytes
+  acquired or decoded. Clear-pixel feasibility remains unknown. A public
+  signing rate limit was resolved by reusing container tokens in memory;
+  no new account/subscription or access bypass was used.
+- Proposed fixed seasonal support, cloud/shoreline exclusion, MNDWI ambiguity,
+  six sensitivities, two-year persistence on each side, geodesic gross areas,
+  explicit unknowns and per-window support/robustness/control/review gates.
+  No replacement scenes/sites or post-result threshold relaxation. Acquisition
+  and inference require approval of the exact proposal and a tested execution
+  runner; this preparation is not a land-loss/reclamation result.
+- Full local suite on 5 November: **238 passed, none skipped**, Python 3.14.5,
+  NumPy 2.4.6, rasterio 1.5.0, pytest 9.1.1, Windows (28.37 s). Includes 23 new
+  synthetic metadata/range, calibration, masking, temporal and persistence
+  tests. Final report, Phase A result and seam evidence remain unchanged.
+  New code and documentation remain uncommitted; nothing pushed.
+- Immutable local proposal: `data/output/coastal_transition_pilot_v1/protocol.json`,
+  SHA-256 `4faf2430c6dbce50fb7e69cdcad9db819953bac6bb90edb2de4376cd38698754`.
+  Geometry, catalogue snapshots, selected dates, XML/header audits, byte estimate,
+  window preview and preparation verification are in the same excluded namespace.
+  No additional plan/status document or methodology/report revision was created.
+
 - Next-phase direction accepted on 5 November 2026: surface-type/geographic
   analysis of the annual jump, a bounded coastal land–water feasibility pilot,
   then a conditional published-subsidence comparison. Added the public roadmap;
@@ -50,7 +115,72 @@ execution instructions. Artifact hashes are recorded once in the registry below.
   and local report-version bytes, and checked the current report link and
   documentation diff. The recorded 183-test pre-seam run remains historical.
 
-### 2026-11-05 — surface-type diagnostic prepared; real analysis awaits approval
+### 2026-11-05 — approved baseline surface-type diagnostic completed
+
+Executed the approved `alphaearth_surface_type_v1` protocol once from clean local
+commit `856b146983ce60ecee3b3f0568f40697ee3baf24`. Compilation and the full suite
+passed at that revision before execution: **215 passed, none skipped**, Windows
+11 / Python 3.14.5 / NumPy 2.4.6 / rasterio 1.5.0 / pytest 9.1.1 (29.17 s).
+Approval, execution verification, results and output-audit hashes are in the
+registry. No push accompanied this run.
+
+- Every pinned input hash, geometry and support census reproduced. Fixed support
+  remains 5,619,719 classified ROI centres across all five transitions: zero
+  joint-support loss and zero unclassified centres. The original grid's 4,825
+  exterior centres remain excluded. No source, mask, sector or threshold changed.
+- All nine observed classes have positive target-minus-comparator differences
+  of medians and median cell-paired differences for all four comparisons.
+  Within geography, all **64 supported class-sector groups** also have positive
+  values for both statistics against all four alternatives: **256/256** positive
+  supported contrasts. These are descriptive summaries, not independent tests;
+  individual cells can have negative contrasts.
+- Magnitude varies by class and geography. Pooled median paired contrasts range
+  across the four comparators from +0.05769 to +0.06466 for tree cover,
+  +0.01576 to +0.02373 for built-up and +0.01183 to +0.02429 for water.
+  The within-sector rows retain the geographic variation; pooled class values
+  must not be interpreted as isolated class effects.
+
+Class-wide median **uncapped cosine distances**, on identical joint support:
+
+| 2020 baseline class | Cells | 2020–21 | 2021–22 | 2022–23 | 2023–24 | 2024–25 |
+|---|---:|---:|---:|---:|---:|---:|
+| Tree cover | 1,713,358 | 0.02874 | 0.02866 | 0.09747 | 0.03670 | 0.03113 |
+| Shrubland | 3,465 | 0.03938 | 0.03763 | 0.10168 | 0.04421 | 0.04230 |
+| Grassland | 357,297 | 0.03610 | 0.03307 | 0.10386 | 0.04278 | 0.03793 |
+| Cropland | 919,256 | 0.05190 | 0.04978 | 0.10510 | 0.06218 | 0.05713 |
+| Built-up | 1,877,777 | 0.01857 | 0.01502 | 0.03971 | 0.02296 | 0.01708 |
+| Bare / sparse vegetation | 202,757 | 0.03350 | 0.03126 | 0.08184 | 0.03661 | 0.03068 |
+| Snow and ice | 0 | — | — | — | — | — |
+| Permanent water bodies | 509,841 | 0.01051 | 0.00759 | 0.03183 | 0.01965 | 0.00749 |
+| Herbaceous wetland | 35,287 | 0.05202 | 0.05137 | 0.11044 | 0.07249 | 0.05642 |
+| Mangroves | 681 | 0.02642 | 0.02001 | 0.07290 | 0.02892 | 0.02614 |
+| Moss and lichen | 0 | — | — | — | — | — |
+
+Sparse/inconclusive support is retained, not pooled away: shrubland is sparse in
+C, E, SW, S and SE; wetland in C, SW, S and SE. Mangroves occur only in N (681
+centres; exactly five qualifying 1 km blocks), leaving the other eight sectors
+empty. Snow/ice and moss/lichen are absent everywhere. Thus 9 of the 99
+class-sector groups are sparse, 26 empty and 64 supported. Sparse descriptive
+statistics do not support class/geographic interpretation.
+
+**Bounded interpretation:** the elevation spans supported baseline classes and
+all sectors, with heterogeneous magnitudes. This is compatible with a shared
+observation/product influence but does not establish that cause, exclude real
+surface differences, or identify which year's inputs are responsible. WorldCover
+is ancillary baseline evidence, not proof of unchanged surfaces. Known aggregate
+findings preceded this prospective follow-up. No significance test, learned
+noise-floor correction, physical-change, subsidence, hazard or risk claim follows.
+
+Write-once outputs in `data/output/alphaearth_surface_type_v1/run/` contain 120
+support rows (including unclassified accounting), 550 transition rows and 440
+paired-contrast rows, JSON provenance, a descriptive summary and two figures.
+CSV contents match JSON exactly; row completeness, quantiles, signs, denominators
+and output hashes passed audit; both figures were visually inspected. Final
+Editorial v5 and completed seam evidence retain their registered hashes. Stop
+for owner review of this diagnostic before Phase B; no coastal acquisition,
+published overlay, benchmark search, new InSAR run or report revision occurred.
+
+### 2026-11-05 — surface-type diagnostic preparation (before approval and execution)
 
 - Completed the Phase A1 input census using existing hashes, raster headers,
   validity masks and the exact WorldCover 2020 v100 tile from the seam run.
@@ -598,6 +728,8 @@ historical snapshots and may change with later implementation.
 | Reference audit / support gate / S2 inventory | `380b30a82390a7f5dc78fe65c6524b0e9bbb6def00d1b6e875ec4a15e4a65ff8` / `0d56e1833b6133d8e2433549e74dec01c50002933403b46fd03d6379fa9f2140` / `d1a68ed72a194bd17c8c1f7c5ceba8d5beb8529fb2342b57fe9c8db69c3280ad` |
 | Full-grid contract / 2023 legacy audit / comparison manifest | `0fac38294b4b2e8ebd1ef2189df0898b4b79ef07ae7b8dcac21aa3e673829862` / `de3a5d48b18a345fa962f0b25c3f359313d31e4b1537c90ed1449342a2514258` / `6f5a56846626ec2c058472ce4ee8707172c245da6642027f645591668fea3fbb` |
 | Surface-type v1 proposed protocol / input inventory / synthetic and full-suite verification | `34f69075b89b76897ab5405d9d98f9cad14a81c68eef0fc53a5535028a06aaa0` / `cd1fe1b7ee30b523563522371684e3ca40a0a45d86a9a07c722951677566297f` / `7f97a2520607d0c9bbc84d0ce794b92c031aed7c7fc5584666ac84f0e12d9d85` |
+| Surface-type v1 approval / clean-commit execution verification | `848af03cfaa175a038e312464ac64d8a86f3b80468c277a3ebcdfdaae6614caf` / `ef84387da6233d4862d62f8eefcbc0098c74a72b232ee8e3ffbcb6a2d2643d3c` |
+| Surface-type v1 results / output audit (includes output hashes) | `b5a29d2710701e664160080291c6bc297c7b34617f7f315ae22769377b5de4b9` / `60ff5b177eae2b591733dc5b238cfcc09a783443b742693ef56555af6f09cf62` |
 | GCS v1 inventory / pixel pilot | `be02701d9a3c539653f5d395fc1a5a659340217b56986e4df8ccd500f2c0e63e` / `49f491d873e9362bc2c5a61502d97842adeca4cd1d4d2c18e62300354ed211bb` |
 | Overview protocol / holdout / confirmation | `784208fb47f72c12862511e622a5317b8bacf5e060217267351833c4ea7ee9b8` / `25b9a272190e799b59439e10114087ced4b810d45f22725c41dd58cd7c6bc6e5` / `1fcd1d31ac73dff348a3b929189cee2f3178b758c09a55d63bf5a04d5c3d01a5` |
 | Six-year GCS-only protocol / comparison (contains year hashes) / volume estimate | `aeb1a2c3e2763f3964c9c6bcf5bf8914063dc30370e5412e0bb2b190137ed07e` / `5a8d4d67e6d63a17ba10ba9c9fe82d652e0c7eeefe4aa98f3d3064223ad7b8aa` / `2e6277b4ac82ac66d80254f4c39e4cc0636953d5fd70fce1d9acf96d4a4a261b` |

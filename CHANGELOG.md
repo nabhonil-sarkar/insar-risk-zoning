@@ -24,6 +24,26 @@ execution instructions. Artifact hashes are recorded once in the registry below.
   comparison is parked: the owner has no full-resolution Pléiades access.
   Verification: 166 tests passed locally; 165 passed and one skipped without data.
 
+### 2026-11-05 — final editorial report and current documentation
+
+- Accepted the owner's 10-page Editorial v5, *Satellite-observed surface
+  differences around Jakarta, 2020–2025*, as the current case study. Copied
+  unchanged to `docs/Nabhonil_Sarkar_Jakarta_Surface_Differences_2020-2025.pdf`;
+  SHA-256 `4ce2a0c85c99ab3780f2e994a4a5c917575244ba0af32ac7f1a039df11c8aa15`.
+  Earlier `Surface_Change` PDF/DOCX files remain superseded drafts, not editable
+  equivalents of the final PDF.
+- Aligned README and package description with the descriptive deliverable;
+  clarified study-area northwest versus North Jakarta, processing reproduction
+  versus cross-year validity, and unscored independent validation. Updated
+  report source credits. No new analysis, threshold changes or validated result;
+  the methodology and frozen evidence remain unchanged.
+- Final report incorporates the prior geographic check: 96.8% of northwest
+  valid cells and 98.8% of its endpoint top-1% cells are outside mainland DKI.
+  It reports the annual jump and reversal as observations, not physical causes.
+- Verification: reviewed all ten rendered pages, confirmed identical Downloads
+  and local report-version bytes, and checked the current report link and
+  documentation diff. The recorded 183-test pre-seam run remains historical.
+
 ### 2026-11-05 — registered Jakarta tile-seam test and endpoint sensitivity
 
 Owner approved v2 SHA-256 `fec005c9b413df6ddcb197746c188183fec9f671743e53fca65a394e927b735d`.

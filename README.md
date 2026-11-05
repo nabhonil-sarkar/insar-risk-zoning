@@ -1,20 +1,26 @@
-# Jakarta surface change and subsidence context
+# Satellite-observed surface differences around Jakarta
 
-A Jakarta research project studying urban change, exposure and subsidence
-evidence. The accepted scope is to analyse **2020–2025 land-surface change
-with AlphaEarth**, audit a published deformation dataset for subsidence context,
-and retain our Sentinel-1 experiments as a relative-pattern case study.
+A remote-sensing case study comparing **2020–2025 AlphaEarth embeddings**
+around Jakarta on one nominal 30 m grid. The current deliverable describes
+surface differences, not confirmed development, subsidence, exposure or risk.
+Our Sentinel-1 experiments remain a relative-pattern case study; published
+ground motion is screened but separate.
 
-The question is: where has Jakarta's urban surface changed, and where do those
-changes overlap published subsidence? Comparing different observation periods
-describes spatial overlap; it does not establish causation.
+The question answered here is: where and when did the satellite-derived surface
+descriptions differ most? Physical interpretation and comparison with published
+subsidence remain future work; spatial overlap would not establish causation.
 
 Owner: Nabhonil Sarkar. Repository:
 [nabhonil-sarkar/insar-risk-zoning](https://github.com/nabhonil-sarkar/insar-risk-zoning).
 Study area: approximately 85 × 59 km around Jakarta.
 
-[Read the illustrated case study (PDF)](docs/Nabhonil_Sarkar_Jakarta_Surface_Change_2020-2025.pdf) ·
+[Read the final illustrated case study (PDF)](docs/Nabhonil_Sarkar_Jakarta_Surface_Differences_2020-2025.pdf) ·
 [Technical methodology (Word)](docs/InSAR_Subsidence_Risk_Zoning_Methodology.docx).
+
+The current report is the accepted 10-page Editorial v5 (5 November 2026).
+The older `Nabhonil_Sarkar_Jakarta_Surface_Change_2020-2025` PDF and DOCX in
+`docs/` are superseded drafts, preserved for history; the DOCX is not the source
+of the final editorial PDF.
 
 ## Status
 
@@ -24,6 +30,13 @@ context. The descending InSAR result supports a reference-stable relative LOS
 pattern over 68.39% of North Jakarta, but its zero level is uncertain and
 independent ground validation is missing.
 
+Two descriptive findings need interpretation: the northwest of the study
+rectangle contains 32.2% of endpoint top-1% cells on 11.1% of valid cells,
+and 2022–2023 is the largest adjacent-year difference at 85.4% of valid cells.
+The northwest is mostly west of mainland Jakarta, not administrative North
+Jakarta. Its concentration persists on 2020 land and after western tile-strip
+exclusion. These checks do not identify a physical cause.
+
 The owner has accepted a public-data route so progress no longer depends on
 unanswered validation emails. Two official AlphaEarth tiles intersect the
 frozen Jakarta grid per year (2020–2025); all 12 headers were verified.
@@ -32,6 +45,7 @@ been generated locally; the GeoTIFFs are not distributed in Git. Each comparison
 has 5,619,719 joint in-ROI cells. Decoded GCS 2023
 matches the frozen baseline exactly throughout the ROI; the legacy export
 also retained 2,650 valid exterior cells. Differences are not labelled development.
+Reproducing 2023 verifies processing, not product consistency across years.
 The published Java source passed its file check. Screening leaves 48,883
 distinct mainland Jakarta locations for contextual analysis, not a continuous
 deformation layer. Across all 93 relevant Wayback releases, the frozen 300-patch
@@ -42,7 +56,8 @@ The benchmark is parked. The remaining annual-jump question concerns differences
 across surface types and independent dated observations. Before comparing
 published subsidence, define spatial units and minimum observation support.
 Verification: 183 tests passed locally with project data before the seam run;
-this is not a count from a data-free checkout.
+this is not a count from a data-free checkout. GitHub Actions also runs automated
+checks; data-dependent tests may skip when local inputs are absent.
 
 See the [changelog](CHANGELOG.md) for milestones and artifact checksums.
 
@@ -62,7 +77,7 @@ The information streams remain separate:
 
 | Source | Role |
 |---|---|
-| [AlphaEarth annual embeddings](https://developers.google.com/earth-engine/guides/aef_on_gcs_readme) | 2020–2025 target; native 10 m, frozen local analysis grid 30 m |
+| [AlphaEarth annual embeddings](https://developers.google.com/earth-engine/guides/aef_on_gcs_readme) | Six years, 2020–2025; stored 20 m overview sampled onto the frozen nominal 30 m grid; native product 10 m |
 | [Java VLM/EW](https://zenodo.org/records/15786357) | Candidate published 2017–2023 deformation and uncertainty |
 | [Sinking City](https://zenodo.org/records/19456870) | Candidate urban-context/comparison layers |
 | COMET-LiCSAR / LiCSBAS | Archived processing experiments and relative LOS evidence |

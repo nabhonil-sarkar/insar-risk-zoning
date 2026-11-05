@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "insar-risk-zoning"
 version = "0.3.2.dev0"
-description = "Jakarta annual surface change with AlphaEarth embeddings and subsidence context"
+description = "Satellite-observed surface differences around Jakarta with AlphaEarth embeddings and subsidence context"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [

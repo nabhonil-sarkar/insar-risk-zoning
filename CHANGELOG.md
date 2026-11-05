@@ -6,6 +6,12 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 
 ## [Unreleased — 0.3.2 recovery]
 
+- Next-phase direction accepted on 5 November 2026: surface-type/geographic
+  analysis of the annual jump, a bounded coastal land–water feasibility pilot,
+  then a conditional published-subsidence comparison. Added the public roadmap;
+  these are planned studies, not executed analyses or new results. Existing
+  protocols, benchmark gates and final report remain unchanged.
+
 - Restructured the illustrated case study and revised the sole methodology
   for the annual surface-change scope. Annual panels retain their pooled
   display cap; captions now state per-panel saturation. Labelled the legacy
@@ -43,6 +49,40 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 - Verification: reviewed all ten rendered pages, confirmed identical Downloads
   and local report-version bytes, and checked the current report link and
   documentation diff. The recorded 183-test pre-seam run remains historical.
+
+### 2026-11-05 — surface-type diagnostic prepared; real analysis awaits approval
+
+- Completed the Phase A1 input census using existing hashes, raster headers,
+  validity masks and the exact WorldCover 2020 v100 tile from the seam run.
+  Verified six annual rasters, six QA records, seven uncapped maps and geometry
+  records. The original 2,858 x 1,968 grid retains 5,619,719 joint ROI centres,
+  with zero support loss or unclassified baseline cells. Nine classes occur;
+  absent snow/ice and moss/lichen remain explicit empty rows. No newly
+  stratified distance distributions were inspected.
+- Proposed the write-once `alphaearth_surface_type_v1` protocol: five adjacent
+  transitions, all 11 baseline classes, original nine sectors, fixed joint
+  support, linear quantiles, four target-minus-comparator contrasts and explicit
+  sparse/empty handling. The count/spread floor is a design choice, not a power
+  or independence claim. Existing aggregate findings are known; baseline classes
+  do not establish unchanged surfaces. Exact protocol approval remains pending.
+- Added `scripts/alphaearth_surface_type.py` and the fail-closed
+  `scripts/run_alphaearth_surface_type.py`. Synthetic coverage includes class
+  and uniform jumps, geographic confounding, missing classes/nodata, ties,
+  quantiles, sparse groups, input/approval gates and non-overwriting output.
+  All required hashes are checked before raster opens; real execution requires
+  the exact protocol approval hash and a clean committed checkout.
+- Verification on 5 November 2026: compilation passed; **215 tests passed,
+  none skipped**, Windows 11, Python 3.14.5, NumPy 2.4.6, rasterio 1.5.0,
+  pytest 9.1.1 (27.01 s). This is uncommitted preparation on base `36b6ed6`,
+  not an executing scientific commit. Local evidence is under
+  `data/output/alphaearth_surface_type_v1/{inventory,protocol,verification}.json`.
+  No real stratified run, acquisition, overlay or report revision occurred;
+  completed seam evidence and the final report retain their registered hashes.
+
+- Subsequent owner approval on 5 November: exact proposed protocol hash in the
+  registry accepted for one Phase A run, after a clean local commit and full
+  test suite. Approval is recorded separately from immutable protocol bytes.
+  No push, Phase B acquisition or Phase C overlay is authorized by this approval.
 
 ### 2026-11-05 — registered Jakarta tile-seam test and endpoint sensitivity
 
@@ -557,6 +597,7 @@ historical snapshots and may change with later implementation.
 | Pléiades metadata scout rule / footprint inventory (not image access) | `02f887abb1ba5389f3cba2e1f7cb673127e09c9c6dfd3d6d40d69f15282ac08a` / `ea41835763bc6456504851ac26eb5506977293954d4fd0796d556f96c5e8fd02` |
 | Reference audit / support gate / S2 inventory | `380b30a82390a7f5dc78fe65c6524b0e9bbb6def00d1b6e875ec4a15e4a65ff8` / `0d56e1833b6133d8e2433549e74dec01c50002933403b46fd03d6379fa9f2140` / `d1a68ed72a194bd17c8c1f7c5ceba8d5beb8529fb2342b57fe9c8db69c3280ad` |
 | Full-grid contract / 2023 legacy audit / comparison manifest | `0fac38294b4b2e8ebd1ef2189df0898b4b79ef07ae7b8dcac21aa3e673829862` / `de3a5d48b18a345fa962f0b25c3f359313d31e4b1537c90ed1449342a2514258` / `6f5a56846626ec2c058472ce4ee8707172c245da6642027f645591668fea3fbb` |
+| Surface-type v1 proposed protocol / input inventory / synthetic and full-suite verification | `34f69075b89b76897ab5405d9d98f9cad14a81c68eef0fc53a5535028a06aaa0` / `cd1fe1b7ee30b523563522371684e3ca40a0a45d86a9a07c722951677566297f` / `7f97a2520607d0c9bbc84d0ce794b92c031aed7c7fc5584666ac84f0e12d9d85` |
 | GCS v1 inventory / pixel pilot | `be02701d9a3c539653f5d395fc1a5a659340217b56986e4df8ccd500f2c0e63e` / `49f491d873e9362bc2c5a61502d97842adeca4cd1d4d2c18e62300354ed211bb` |
 | Overview protocol / holdout / confirmation | `784208fb47f72c12862511e622a5317b8bacf5e060217267351833c4ea7ee9b8` / `25b9a272190e799b59439e10114087ced4b810d45f22725c41dd58cd7c6bc6e5` / `1fcd1d31ac73dff348a3b929189cee2f3178b758c09a55d63bf5a04d5c3d01a5` |
 | Six-year GCS-only protocol / comparison (contains year hashes) / volume estimate | `aeb1a2c3e2763f3964c9c6bcf5bf8914063dc30370e5412e0bb2b190137ed07e` / `5a8d4d67e6d63a17ba10ba9c9fe82d652e0c7eeefe4aa98f3d3064223ad7b8aa` / `2e6277b4ac82ac66d80254f4c39e4cc0636953d5fd70fce1d9acf96d4a4a261b` |

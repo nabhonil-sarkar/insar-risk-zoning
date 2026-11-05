@@ -61,6 +61,34 @@ checks; data-dependent tests may skip when local inputs are absent.
 
 See the [changelog](CHANGELOG.md) for milestones and artifact checksums.
 
+## Next phase (planned, not executed)
+
+The next goal is to explain observable surface differences before attempting
+broader risk interpretation:
+
+1. Compare all five annual transitions by **2020 baseline surface class** and
+   geographic sector, starting with the widespread 2022–2023 jump. Existing
+   WorldCover classes describe the baseline, not proven unchanged surfaces.
+2. Test a small **2020–2025 coastal land–water pilot** using repeated public
+   optical observations. First establish clear-image support, then assess
+   persistent transitions with explicit ambiguous areas and sensitivity checks.
+   Do not equate a transition with reclamation, erosion or subsidence.
+3. If the pilot supports interpretation, consider the screened published
+   subsidence data as context under predefined spatial-support rules. The
+   observation periods differ; overlap alone is not causation.
+
+Each stage needs a specified protocol, synthetic tests and a review before
+expansion. Insufficient observations lead to a documented stop, not weaker
+thresholds. The existing model-comparison benchmark stays parked; no new radar
+rerun or risk-map release is planned. The accepted report remains unchanged.
+
+Phase A preparation is complete locally: input provenance, geometry and baseline
+class support were inventoried, and a write-once diagnostic protocol was proposed.
+The exact protocol hash was approved on 5 November; real execution is next. The new
+array statistics and gated runner passed synthetic checks; the full local suite
+passed 215 tests with none skipped on 5 November 2026. Input support counts are
+not evidence of physical change. See the changelog for protocol and evidence hashes.
+
 ## Approach and inputs
 
 The information streams remain separate:

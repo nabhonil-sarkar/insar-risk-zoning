@@ -56,13 +56,13 @@ The benchmark is parked. The approved surface-type diagnostic now finds a
 broad 2022–2023 elevation across baseline classes and sectors, with varying
 magnitude. Its physical cause still needs independent dated observations. Before comparing
 published subsidence, define spatial units and minimum observation support.
-Verification: 270 tests passed locally with project data before coastal execution
-on 5 November 2026; this is not a count from a data-free checkout. GitHub Actions also runs automated
+Verification: 326 tests passed locally with project data, none skipped, after the
+nodata correction and restart safeguards on 6 November 2026; this is not a count from a data-free checkout. GitHub Actions also runs automated
 checks; data-dependent tests may skip when local inputs are absent.
 
 See the [changelog](CHANGELOG.md) for milestones and artifact checksums.
 
-## Next phase (Phase A complete; bounded coastal pilot approved)
+## Next phase (Phase A complete; coastal execution stopped before pixels)
 
 The next goal is to explain observable surface differences before attempting
 broader risk interpretation:
@@ -114,6 +114,28 @@ The execution runner verifies all sources before pixel requests, enforces the
 total byte/time budget and stops at a failed temporal-support gate. The adopted
 design is in the sole methodology; no scale-up or published overlay is authorized.
 Local protocol/approval/evidence: `data/output/coastal_transition_pilot_v1/`.
+
+The approved run from clean local commit `5dbdbb4` stopped at the actual
+GeoTIFF geometry/datatype/nodata check before any pixel blocks were requested.
+No dates were acquired and no transition classification ran. Clear-pixel
+feasibility remains untested; this is an input/execution stop, not a failed
+temporal-support result. Metadata-only diagnosis identified an absent TIFF
+nodata tag on the first scene's B03 asset; its pinned product XML explicitly
+declares NODATA=0 and all other native fields match. The corrected runner accepts
+absent or zero TIFF nodata only after verifying the exact asset/product XML
+association and a unique zero declaration. Conflicts and missing/ambiguous
+declarations fail before image-block requests; geometry/datatype checks remain
+exact. Failures now retain asset identity and named expected/actual fields.
+All 576 cached asset/XML associations pass, and the diagnosed header passes
+local replay. This does not establish compatibility of every native TIFF or
+clear-pixel feasibility. The original run and diagnosis remain immutable;
+the owner approved the correction and separate restart plan on 6 November.
+The new attempt requires fresh test verification and a clean local commit,
+preserves the original evidence, and carries prior traffic/time charges forward.
+The approved remaining allowance is 2,948,670,514 bytes and 7,140 seconds,
+with at least 7 GiB free disk and all frozen source/scientific gates unchanged.
+All 144 window/year-season/buffer coverage entries explicitly remain unacquired.
+No date/site substitution, threshold change, push or scale-up followed the stop.
 
 ## Approach and inputs
 

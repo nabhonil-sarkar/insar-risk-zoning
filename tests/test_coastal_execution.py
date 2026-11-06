@@ -13,6 +13,7 @@ from scripts import coastal_inference as inf
 from scripts import coastal_pilot_feasibility as f
 from scripts import run_coastal_pilot as runner
 from scripts.coastal_transport import Budget,Transport,GateError,metadata_fields,assemble
+from scripts.coastal_validation import NodataContract
 
 
 def response(status=206,body=b'1234',**headers):
@@ -73,10 +74,11 @@ def test_partial_tiff_lossless_blocks_and_real_georeference():
             assert ds.crs.to_epsg()==32748
             np.testing.assert_array_equal(ds.read(1,window=rasterio.windows.Window(0,0,32,32)),a[:32,:32])
             assert ds.read(1,window=rasterio.windows.Window(32,32,32,32)).sum()==0
-    item={'assets':{'B11':{'proj:shape':[64,64],'proj:transform':[20,0,600000,0,-20,9400000]}}}
-    runner.verify_native(assemble(fields,{}),item,'B11')
+    item={'id':'synthetic','assets':{'B11':{'href':'synthetic','proj:shape':[64,64],'proj:transform':[20,0,600000,0,-20,9400000]}}}
+    contract=NodataContract('synthetic','B11','synthetic','synthetic','synthetic')
+    runner.verify_native(assemble(fields,{}),item,'B11',contract)
     item['assets']['B11']['proj:transform'][0]=10
-    with pytest.raises(GateError):runner.verify_native(packed,item,'B11')
+    with pytest.raises(GateError):runner.verify_native(packed,item,'B11',contract)
 
 
 @pytest.mark.parametrize('n,den,gate,expected',[(1999,2500,.8,False),(2000,2500,.8,True),(1749,2500,.7,False),(1750,2500,.7,True),(89,100,.9,False),(90,100,.9,True),(94,100,.95,False),(95,100,.95,True),(0,0,.8,False)])
@@ -142,7 +144,10 @@ def test_wrong_protocol_or_approval_stops_before_any_network(tmp_path,monkeypatc
 
 def test_native_preflight_etag_failure_before_payload():
     t=Mock();t.head.side_effect=GateError('ETag changed')
-    with pytest.raises(GateError):runner.inspect_native(({},{}),t)
+    item={'id':'synthetic','assets':{'B11':{'href':'synthetic'}}}
+    contract=NodataContract('synthetic','B11','synthetic','synthetic','synthetic')
+    with pytest.raises(GateError):runner.inspect_native((item,{'asset':'B11'},contract),t)
+    t.head.assert_called_once()
     t.read.assert_not_called()
 
 
@@ -150,7 +155,7 @@ def test_native_preflight_etag_failure_before_payload():
 def test_local_execution_prerequisites_fail_closed(tmp_path,monkeypatch,case):
     protocol={'evidence_sha256':{},'preparation_code_sha256':{}}
     approval=dict(protocol_sha256='sha',approved=True,total_acquisition_ceiling_bytes=runner.CEILING,minimum_free_disk_bytes=7*1024**3,acquisition_wall_seconds=7200)
-    required=['scripts/run_coastal_pilot.py','scripts/coastal_transport.py','scripts/coastal_inference.py','tests/test_coastal_execution.py','docs/InSAR_Subsidence_Risk_Zoning_Methodology.docx']
+    required=['scripts/run_coastal_pilot.py','scripts/coastal_transport.py','scripts/coastal_inference.py','scripts/coastal_validation.py','tests/test_coastal_execution.py','tests/test_coastal_nodata.py','docs/InSAR_Subsidence_Risk_Zoning_Methodology.docx']
     verification=dict(failed=1 if case=='tests' else 0,skipped=0,passed=263,protocol_sha256='sha',methodology_render_reviewed=case!='methodology',executing_file_sha256={k:'bad' if case=='code' else 'sha' for k in required})
     (tmp_path/'execution_verification.json').write_text(json.dumps(verification))
     monkeypatch.setattr(runner,'checked',lambda p,sha:protocol if p.name=='protocol.json' else approval)
@@ -173,6 +178,6 @@ def test_no_new_requests_after_a_concurrent_gate_failure(tmp_path):
 
 def test_existing_run_is_never_overwritten(tmp_path,monkeypatch):
     (tmp_path/'run').mkdir();(tmp_path/'run'/'sentinel').write_text('keep')
-    monkeypatch.setattr(runner,'preflight',lambda *a:({}, {}, {}, {}, 'commit'))
+    monkeypatch.setattr(runner,'preflight',lambda *a,**kw:({}, {}, {}, {}, 'commit'))
     with pytest.raises(FileExistsError):runner.run(tmp_path,tmp_path)
     assert (tmp_path/'run'/'sentinel').read_text()=='keep'

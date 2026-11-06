@@ -6,6 +6,85 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 
 ## [Unreleased — 0.3.2 recovery]
 
+### 2026-11-06 — approved restart safeguards, before execution
+
+- Owner approved the reviewed correction and restart plan. Separate immutable
+  approval/evidence/verification records live under local `restart_attempt_02/`;
+  execution targets exclusive `run_attempt_02/`. Existing attempts cannot be
+  resumed or overwritten, and all 245 prior pilot evidence files are hash-gated.
+- The unchanged 3 GiB ceiling starts with a 272,554,958-byte debit: 3,377,970
+  stopped-run reservations, 741,532 diagnostic reservations and the accepted
+  256 MiB preparation allowance. That allowance includes 21,940,726 known
+  metadata body bytes; it is not a measured upper bound on historical traffic.
+  Remaining allowance: 2,948,670,514 bytes. All subsequent metadata, pixels,
+  retries and HTTP reservations count without refunds. A 60-second historical
+  debit leaves 7,140 seconds; at least 7 GiB free disk is still required.
+- Added synthetic tests for cumulative byte/time boundaries, invalid carry-in,
+  approval/prior-evidence mutation, stale/failed test evidence, exclusive attempt
+  paths and metadata failure before block acquisition. Full local suite:
+  **326 passed, zero failures/skips**, Python 3.14.5, Windows, 6 November
+  (30.40 s). Frozen protocol, preparation code, masks, thresholds, report,
+  methodology, Phase A and seam evidence remain unchanged. No push authorized.
+
+### 2026-11-06 — XML-backed nodata correction, without restart
+
+- Metadata-only diagnosis isolated the first failed native check to B03 of
+  `S2B_MSIL2A_20200115T030049_R032_T48MXU_20201002T190103`: TIFF nodata was
+  absent, versus the runner's expected zero. Source and repacked metadata agree;
+  CRS, transform, dimensions, datatype and band count match exactly. The pinned
+  product XML explicitly declares NODATA=0. This was an overly strict metadata
+  representation check, not a demonstrated incompatible grid or pixel result.
+- Added execution-only XML validation: pinned item/XML hashes, product identity,
+  source URL, band/resolution and unique XML image reference must bind each
+  asset to its product. A unique explicit NODATA=0 declaration is mandatory;
+  SCL additionally requires SC_NODATA=0. Only then are absent/zero TIFF tags
+  accepted. Missing, ambiguous or conflicting declarations and nonzero/NaN
+  TIFF nodata fail closed. Named expected/actual failures retain asset identity,
+  unsigned URL and, for native-header failures, ETag and requested metadata ranges.
+- Preserved exact geometry/datatype checks, pre-calibration DN-zero masking,
+  scientific thresholds and protocol-bound preparation code. No protocol version
+  or methodology change is required. Added 35 synthetic regression cases;
+  **305 tests passed, zero failures/errors/skips**, Python 3.14.5, Windows,
+  6 November 2026 (45.843 s). Invalid metadata cases stop before image blocks.
+- Validated all 96 cached XMLs/576 asset associations and replayed the diagnosed
+  B03 header successfully, without network requests or real pixel reads. This
+  does not validate every native TIFF or establish clear-pixel support.
+  New local verification: `data/output/coastal_transition_pilot_v1/nodata_correction_20261106/`.
+  All 242 prior pilot files, the report, sole methodology, Phase A result and
+  seam result retain their hashes. Original stopped run and diagnosis are intact.
+- No restart, commit or push. Any restart requires separate owner approval,
+  fresh execution verification and a clean local commit, an exclusive new
+  attempt directory, and cumulative accounting of prior transfers. The existing
+  execution approval/verification records have not been overwritten or reused
+  to authorize another attempt.
+
+### 2026-11-05 — coastal v1 stopped at native-header preflight
+
+- Executed once from clean local commit
+  `5dbdbb4cbae60aeb1513c49ef38c0c797e9f73d5`, after exact owner approval,
+  methodology adoption/render review and 270 passing tests with no skips.
+- Status: `STOP_EXECUTION_GATE`. The actual GeoTIFF geometry/datatype/nodata
+  check failed before pixel acquisition. The runner reports this as one
+  combined gate and did not retain the failed asset identity/observed fields;
+  the exact discrepancy is unresolved. No interpretation of cloud coverage,
+  transition feasibility or physical change follows from this stop.
+- Zero complete acquisition dates; no pixel-block acquisition directory or
+  transition-state output exists. All 144 coverage rows are explicitly
+  unacquired, with support values null. Stored metadata response bodies total
+  19,652 bytes; conservative transfer reservations total 3,377,970 bytes
+  including per-request overhead and failed attempts. Run wall time was
+  5.95 seconds, below the approved limits. No retry run, source/site/date
+  substitution, threshold relaxation, new imagery or Phase C followed.
+- Immutable local results: `data/output/coastal_transition_pilot_v1/run/results.json`,
+  SHA-256 `31fe3d925f59b12d21b7e50b13a5736d93c4b5f97b7da1d9e54ede3a371ccbe7`.
+  Output audit SHA-256:
+  `6ed97bbc875861419da9f53ae30eece4a48d466d7533e442af6cf8b67112acdc`.
+  The separate `execution_stop_audit.json` verifies all output hashes and the
+  absence of pixel/classification outputs. The final report, Phase A results,
+  seam evidence and frozen protocol retain their registered hashes.
+  No push occurred. Further execution needs a separately authorized diagnosis
+  and reviewed disposition of the failed input gate; v1 evidence must remain.
+
 ### 2026-11-05 — approved coastal execution safeguards and methodology adoption
 
 - Owner approved the exact coastal v1 protocol recorded below, a 3 GiB total

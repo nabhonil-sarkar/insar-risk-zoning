@@ -19,7 +19,9 @@ from scripts import coastal_pilot_feasibility as f
 from scripts import coastal_pilot_pc as pc
 from scripts import coastal_pilot_rules as rules
 from scripts import coastal_inference as inf
+from scripts import coastal_restart as restart
 from scripts.coastal_transport import Budget, Transport, GateError, metadata_fields, assemble
+from scripts.coastal_validation import ValidationError, xml_nodata_contract, require_contract, record_failure
 
 PROTOCOL_SHA='4faf2430c6dbce50fb7e69cdcad9db819953bac6bb90edb2de4376cd38698754'
 APPROVAL_SHA='f36011f420ee5e7fbb446af89934a41f29a8585a370cf5be7bd158f984d6c830'
@@ -41,7 +43,7 @@ def clean_commit(root):
     return subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
 
 
-def preflight(root,out,free_bytes=None,commit_fn=clean_commit):
+def preflight(root,out,free_bytes=None,commit_fn=clean_commit,failure_dir=None,attempt=None):
     # All local evidence and approval gates precede any network request.
     protocol=checked(out/'protocol.json',PROTOCOL_SHA)
     approval=checked(out/'approval.json',APPROVAL_SHA)
@@ -56,7 +58,12 @@ def preflight(root,out,free_bytes=None,commit_fn=clean_commit):
     for name,sha in FIXED.items():
         if f.digest(root/name)!=sha:raise GateError('Protected artifact changed')
     if f.digest(f.WC_PATH)!=f.WC_SHA:raise GateError('Baseline tile changed')
-    verification=json.loads((out/'execution_verification.json').read_bytes())
+    verification_dir=out
+    if attempt is not None:
+        restart.contract(out,attempt,PROTOCOL_SHA)
+        verification_dir=out/restart.RECORDS
+    verification=json.loads((verification_dir/'execution_verification.json').read_bytes())
+    if attempt is not None:restart.verify_tests(verification_dir,verification)
     if verification['failed']!=0 or verification['skipped']!=0 or verification['passed']<238:
         raise GateError('Full-suite verification missing/failed')
     if verification['protocol_sha256']!=PROTOCOL_SHA or not verification['methodology_render_reviewed']:
@@ -64,7 +71,9 @@ def preflight(root,out,free_bytes=None,commit_fn=clean_commit):
     for name,sha in verification['executing_file_sha256'].items():
         if f.digest(root/name)!=sha:raise GateError('Code/document changed after tests: '+name)
     required={'scripts/run_coastal_pilot.py','scripts/coastal_transport.py','scripts/coastal_inference.py',
-              'tests/test_coastal_execution.py','docs/InSAR_Subsidence_Risk_Zoning_Methodology.docx'}
+              'scripts/coastal_validation.py','tests/test_coastal_execution.py','tests/test_coastal_nodata.py',
+              'docs/InSAR_Subsidence_Risk_Zoning_Methodology.docx'}
+    if attempt is not None:required.update({'scripts/coastal_restart.py','tests/test_coastal_restart.py'})
     if not required<=verification['executing_file_sha256'].keys():raise GateError('Verification incomplete')
     commit=commit_fn(root)
     if (free_bytes if free_bytes is not None else shutil.disk_usage(out).free)<7*1024**3:
@@ -76,30 +85,38 @@ def preflight(root,out,free_bytes=None,commit_fn=clean_commit):
     if len(by_id)!=96 or len(resources['scenes'])!=96:raise GateError('Scene list changed')
     for scene in resources['scenes']:
         item=by_id[scene['item']];pc.contract(item)
-        if hashlib.sha256(json.dumps(item,sort_keys=True).encode()).hexdigest()!=scene['item_metadata_sha256']:
-            raise GateError('Item metadata mismatch')
         raw=(out/'pc_header_cache'/(scene['item']+'.xml')).read_bytes()
-        if hashlib.sha256(raw).hexdigest()!=scene['product_xml_sha256']:
-            raise GateError('XML mismatch')
+        for asset in scene['assets']:
+            try:
+                xml_nodata_contract(raw,item,scene,asset['asset'])
+            except ValidationError as exc:
+                if failure_dir is not None:record_failure(failure_dir,exc)
+                raise
         if pc.radiometry(raw,item['properties']['s2:processing_baseline'])!=scene['radiometry']:
             raise GateError('Calibration mismatch')
-        for asset in scene['assets']:
-            if asset['url']!=item['assets'][asset['asset']]['href']:raise GateError('Asset URL changed')
     return protocol,geom,selection,resources,commit
 
 
-def verify_native(data,item,key):
+def verify_native(data,item,key,nodata_contract):
+    require_contract(nodata_contract,item,key)
     with MemoryFile(data) as mem:
         with mem.open() as ds:
             a=item['assets'][key]
-            if (ds.count!=1 or ds.crs.to_epsg()!=32748 or list(ds.shape)!=a['proj:shape']
-                    or list(ds.transform)[:6]!=a['proj:transform']
-                    or ds.dtypes[0]!=('uint8' if key=='SCL' else 'uint16') or ds.nodata!=0):
-                raise GateError('Actual GeoTIFF geometry/type/nodata differs from contract')
+            expected=dict(count=1,crs=32748,shape=a['proj:shape'],transform=a['proj:transform'],
+                          datatype='uint8' if key=='SCL' else 'uint16',tiff_nodata=[None,0])
+            actual=dict(count=ds.count,crs=ds.crs.to_epsg() if ds.crs else None,shape=list(ds.shape),
+                        transform=list(ds.transform)[:6],datatype=ds.dtypes[0],tiff_nodata=ds.nodata)
+            mismatches={k:v for k,v in expected.items() if (actual[k] not in (None,0) if k=='tiff_nodata' else actual[k]!=v)}
+            if mismatches:
+                raise ValidationError(item,key,'native_tiff',mismatches,{k:actual[k] for k in mismatches})
+            return dict(actual,effective_nodata=0,product_xml_sha256=nodata_contract.xml_sha256,
+                        product_xml_url=nodata_contract.xml_url)
 
 
 def inspect_native(job,transport):
-    item,asset=job;transport.head(asset);reads=[];cache={}
+    item,asset,nodata_contract=job
+    require_contract(nodata_contract,item,asset['asset'])
+    transport.head(asset);reads=[];cache={}
     def read(off,n):
         if (off,n) not in cache:
             raw=transport.read(asset,off,n);cache[(off,n)]=raw
@@ -115,11 +132,17 @@ def inspect_native(job,transport):
     fields=metadata_fields(read)
     if any(max(r['offset'],p)<min(r['offset']+r['bytes'],p+n) for r in reads for p,n in zip(layout['offsets'],layout['bytecounts'])):
         raise GateError('Header request overlaps native image data')
-    verify_native(assemble(fields,{}),item,asset['asset'])
-    return dict(item=item['id'],asset=asset['asset'],fields=fields,ranges=reads)
+    try:
+        validation=verify_native(assemble(fields,{}),item,asset['asset'],nodata_contract)
+    except ValidationError as exc:
+        exc.detail.update(etag=asset.get('etag'),metadata_ranges=reads)
+        raise
+    return dict(item=item['id'],asset=asset['asset'],fields=fields,ranges=reads,validation=validation)
 
 
-def acquire_scene(scene,item,fields,transport,run,windows):
+def acquire_scene(scene,item,fields,transport,run,windows,nodata_contracts):
+    # Even this lower-level entry point rejects wrong contracts before any blocks.
+    for a in scene['assets']:require_contract(nodata_contracts[(scene['item'],a['asset'])],item,a['asset'])
     outputs={w['id']:{} for w in windows};evidence=[]
     dest=run/'acquired'/scene['item'];dest.mkdir(parents=True,exist_ok=False)
     for asset in scene['assets']:
@@ -131,7 +154,7 @@ def acquire_scene(scene,item,fields,transport,run,windows):
         packed=assemble(fields[(scene['item'],key)]['fields'],blocks)
         path=dest/(key+'.partial.tif')
         with path.open('xb') as stream:stream.write(packed)
-        verify_native(packed,item,key)
+        verify_native(packed,item,key,nodata_contracts[(scene['item'],key)])
         with MemoryFile(packed) as mem:
             with mem.open() as ds:
                 for w in windows:
@@ -171,25 +194,38 @@ def baseline_controls(geom):
     return controls
 
 
-def run(root=f.ROOT,out=f.OUT):
-    protocol,geom,selection,resources,commit=preflight(root,out)
-    run=out/'run';run.mkdir(exist_ok=False)
+def run(root=f.ROOT,out=f.OUT,attempt=None):
+    carried=restart.contract(out,attempt,PROTOCOL_SHA) if attempt is not None else {}
+    verification_dir=out/restart.RECORDS if attempt is not None else out
+    # A separate append-only failure area preserves local preflight details too.
+    failure_dir=verification_dir/'validation_failures';failure_dir.mkdir(exist_ok=True)
+    protocol,geom,selection,resources,commit=preflight(root,out,failure_dir=failure_dir,attempt=attempt)
+    run=out/(attempt or 'run');run.mkdir(exist_ok=False)
     f.write_new(run/'execution.json',dict(protocol_sha256=PROTOCOL_SHA,approval_sha256=APPROVAL_SHA,
-        commit=commit,verification_sha256=f.digest(out/'execution_verification.json'),free_disk_bytes=shutil.disk_usage(out).free))
-    budget=Budget(CEILING,7200,run/'transfer.jsonl');transport=Transport(budget)
+        restart_approval_sha256=restart.APPROVAL_SHA if attempt else None,attempt=attempt or 'run',
+        prior_reserved_bytes=carried.get('prior_reserved_bytes',0),prior_elapsed_seconds=carried.get('prior_elapsed_seconds',0),
+        commit=commit,verification_sha256=f.digest(verification_dir/'execution_verification.json'),free_disk_bytes=shutil.disk_usage(out).free))
+    budget=Budget(CEILING,7200,run/'transfer.jsonl',prior_reserved=carried.get('prior_reserved_bytes',0),
+                  prior_seconds=carried.get('prior_elapsed_seconds',0));transport=Transport(budget)
     measured=[];support_arrays={};observations={};fields={};result={}
     by_id={i['id']:i for i in selection['selected_items']}
     scenes={s['item']:s for s in resources['scenes']}
     date_item={i['properties']['datetime'][:10]:i for i in selection['selected_items']}
+    nodata_contracts={}
+    for scene in resources['scenes']:
+        raw=(out/'pc_header_cache'/(scene['item']+'.xml')).read_bytes()
+        for asset in scene['assets']:
+            nodata_contracts[(scene['item'],asset['asset'])]=xml_nodata_contract(raw,by_id[scene['item']],scene,asset['asset'])
     def guarded(function,*args):
         try:
             budget.check()
             return function(*args)
         except Exception as exc:
+            if isinstance(exc,ValidationError):record_failure(failure_dir,exc)
             budget.stop(str(exc) if isinstance(exc,GateError) else type(exc).__name__)
             raise
     try:
-        jobs=[(by_id[s['item']],a) for s in resources['scenes'] for a in s['assets']]
+        jobs=[(by_id[s['item']],a,nodata_contracts[(s['item'],a['asset'])]) for s in resources['scenes'] for a in s['assets']]
         # Verify every source's version AND actual geometry before ANY pixels.
         with ThreadPoolExecutor(max_workers=6) as pool:
             for n,record in enumerate(pool.map(lambda job:guarded(inspect_native,job,transport),jobs),1):
@@ -200,7 +236,7 @@ def run(root=f.ROOT,out=f.OUT):
             budget.check();dates=season['dates'];batch={w['id']:[] for w in geom['windows']}
             # Date order is fixed; parallelism affects delivery only.
             with ThreadPoolExecutor(max_workers=6) as pool:
-                pending=[pool.submit(guarded,acquire_scene,scenes[date_item[d]['id']],date_item[d],fields,transport,run,geom['windows']) for d in dates]
+                pending=[pool.submit(guarded,acquire_scene,scenes[date_item[d]['id']],date_item[d],fields,transport,run,geom['windows'],nodata_contracts) for d in dates]
                 for d,future in zip(dates,pending):
                     observed=future.result();observations[d]=observed
                     for wid,a in observed.items():batch[wid].append(a)
@@ -222,6 +258,7 @@ def run(root=f.ROOT,out=f.OUT):
         message=budget.stop_reason or (str(exc) if isinstance(exc,GateError) else type(exc).__name__)
         result=dict(status='STOP_EXECUTION_GATE',reason=message,transitions_inferred=False,
                     error_type=type(exc).__name__,acquired_complete_dates=sorted(observations))
+        if isinstance(exc,ValidationError):result['validation_failure']=exc.detail
         print('Stopped:',message,flush=True)
     finally:
         rows=inf.all_coverage_rows(measured,geom['windows'],protocol['observations']['actual_dates_and_baselines'])
@@ -229,6 +266,10 @@ def run(root=f.ROOT,out=f.OUT):
         result.update(protocol_sha256=PROTOCOL_SHA,commit=commit,acquired_complete_dates=sorted(observations),
                       body_bytes_received=budget.received,total_reserved_bytes=budget.reserved,
                       acquisition_elapsed_seconds=budget.clock()-budget.start,ceiling_bytes=CEILING,
+                      prior_reserved_bytes=budget.prior_reserved,prior_elapsed_seconds=budget.prior_seconds,
+                      attempt_reserved_bytes=budget.reserved-budget.prior_reserved,
+                      attempt_elapsed_seconds=budget.clock()-budget.attempt_start,
+                      restart_approval_sha256=restart.APPROVAL_SHA if attempt else None,
                       immutable_inputs_unchanged=all(f.digest(root/name)==sha for name,sha in FIXED.items()),
                       no_scale_up=True,no_phase_c=True)
         f.write_new(run/'results.json',result)
@@ -238,5 +279,7 @@ def run(root=f.ROOT,out=f.OUT):
 
 
 if __name__=='__main__':
-    argparse.ArgumentParser(description=__doc__).parse_args()
-    print(json.dumps(run(),indent=2))
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--attempt',choices=[restart.ATTEMPT])
+    args=parser.parse_args()
+    print(json.dumps(run(attempt=args.attempt),indent=2))

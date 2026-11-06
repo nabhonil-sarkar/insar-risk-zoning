@@ -19,10 +19,15 @@ class GateError(RuntimeError):
 
 
 class Budget:
-    def __init__(self, ceiling, seconds, log, clock=time.monotonic):
+    def __init__(self, ceiling, seconds, log, clock=time.monotonic, *, prior_reserved=0, prior_seconds=0):
+        if (type(prior_reserved) is not int or not 0<=prior_reserved<ceiling
+                or type(prior_seconds) is not int or not 0<=prior_seconds<seconds):
+            raise GateError('Invalid carried acquisition budget')
         self.ceiling, self.seconds, self.clock = ceiling, seconds, clock
-        self.start = clock()
-        self.reserved = 0
+        self.attempt_start = clock()
+        self.start = self.attempt_start-prior_seconds
+        self.prior_reserved, self.prior_seconds = prior_reserved, prior_seconds
+        self.reserved = prior_reserved
         self.received = 0
         self.stop_reason = None
         self.lock = threading.Lock()
@@ -51,7 +56,10 @@ class Budget:
         with self.lock:
             self.received += received
             entry = dict(entry, elapsed_seconds=self.clock()-self.start,
-                         cumulative_reserved_bytes=self.reserved, cumulative_body_bytes=self.received)
+                         cumulative_reserved_bytes=self.reserved, cumulative_body_bytes=self.received,
+                         prior_reserved_bytes=self.prior_reserved, prior_elapsed_seconds=self.prior_seconds,
+                         attempt_reserved_bytes=self.reserved-self.prior_reserved,
+                         attempt_elapsed_seconds=self.clock()-self.attempt_start)
             with self.log.open('a', encoding='utf-8') as stream:
                 stream.write(json.dumps(entry, allow_nan=False)+'\n')
 

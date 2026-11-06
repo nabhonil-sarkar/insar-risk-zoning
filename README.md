@@ -56,16 +56,32 @@ The benchmark is parked. The approved surface-type diagnostic now finds a
 broad 2022–2023 elevation across baseline classes and sectors, with varying
 magnitude. Its physical cause still needs independent dated observations. Before comparing
 published subsidence, define spatial units and minimum observation support.
-Verification: 326 tests passed locally with project data, none skipped, after the
-nodata correction and restart safeguards on 6 November 2026; this is not a count from a data-free checkout. GitHub Actions also runs automated
+Verification: 383 tests passed locally with project data, none skipped, after
+Stage 1 seasonal coverage implementation on 6 November 2026 (80.05 s). Network
+connections were blocked during verification; this is not a count from a data-free checkout. GitHub Actions also runs automated
 checks; data-dependent tests may skip when local inputs are absent.
 
 See the [changelog](CHANGELOG.md) for milestones and artifact checksums.
 
-## Next phase (Phase A complete; coastal execution stopped before pixels)
+## Next phase (Phase A complete; seasonal coverage implementation verified)
 
 The next goal is to explain observable surface differences before attempting
 broader risk interpretation:
+
+The original two-season coastal pilot is closed. A separate June–September
+Stage 1 workflow is implemented and verified offline, with **no acquisition
+approval**. It retains the existing 48 dates, six windows and numerical gates,
+validates all 288 selected source headers before pixels, and uses the frozen
+order 2022 → 2021 → 2024 → 2023 → 2020 → 2025. Both coverage failure and complete
+success stop without classification; failure closes this optical branch under
+the current scope. Tide access does not block coverage. Stage 2 requires a later
+review, tide-method addendum and separate authorization.
+
+The new entry point is `scripts/run_coastal_coverage.py`; it requires separate
+exact-hash acquisition approval and fresh execution verification, including a
+clean executing commit. No production run directory or execution approval exists.
+Local protocol and implementation evidence: `data/output/coastal_jun_sep_v1/`.
+Historical pilot details below remain preserved. The accepted report is unchanged.
 
 1. Completed the comparison of all five annual transitions by **2020 baseline
    surface class** and geographic sector for owner review. Existing
@@ -97,15 +113,15 @@ The complete local output is `data/output/alphaearth_surface_type_v1/run/`:
 support, transition and contrast tables, JSON provenance, a summary and two
 figures. Its approved runner requires a clean commit and verified input hashes,
 and refuses to overwrite the run. The owner subsequently authorized Phase B
-feasibility and protocol preparation; coastal acquisition and published-data
-overlay have not started. See the
+feasibility and protocol preparation; coastal attempt 02 has now stopped at its
+first seasonal support gate. Published-data overlay has not started. See the
 changelog for all class medians, limitations and artifact hashes.
 
 The approved coastal pilot uses four 1 km coastal windows and two controls
 selected from 2020 WorldCover geometry, with 96 fixed Sentinel-2 dates across
 2020–2025. Public catalogue/XML/TIFF-header checks support a bounded acquisition:
 1.70 GiB of required compressed blocks, a 3 GiB transfer ceiling and 7 GiB disk
-reservation. Clear-pixel support remains unmeasured. The Planetary Computer
+reservation. The first season now fails clear-observation support. The Planetary Computer
 route requires verified per-product reflectance offsets and retains mixed
 processing baselines; it is not a uniformly reprocessed archive. The separate
 protocol fixes masking, temporal support, persistence, sensitivity and stopping
@@ -136,6 +152,27 @@ The approved remaining allowance is 2,948,670,514 bytes and 7,140 seconds,
 with at least 7 GiB free disk and all frozen source/scientific gates unchanged.
 All 144 window/year-season/buffer coverage entries explicitly remain unacquired.
 No date/site substitution, threshold change, push or scale-up followed the stop.
+
+The separately approved restart ran from clean local commit `0ac4b05` on
+6 November. All 576 native headers passed, including 156 absent and 420
+explicit-zero TIFF nodata tags backed by pinned XML. It acquired only the eight
+fixed January–April 2020 dates, then stopped at **STOP_TEMPORAL_SUPPORT**.
+All four coastal windows have 0% qualifying support at both 60 m and 120 m
+cloud/shadow buffers. Inland control L1 reaches only 2/2,500 cells (0.08%) at
+60 m and zero at 120 m; open-water control W1 is zero at both. Every entry
+fails the frozen 80% gate. Some cells have three clear dates, but the required
+three-month coverage and 60-day span are inadequate. This is insufficient
+temporal support under this fixed design, not evidence of absent surface change.
+
+The restart preserves 12 measured coverage rows and 132 explicitly unacquired
+rows; no later seasons or transition classification followed. It received
+134,763,696 body bytes and charged 814,247,424 bytes including the accepted
+historical debit, below 3 GiB. Attempt time was 673.75 seconds. Local outputs:
+`data/output/coastal_transition_pilot_v1/run_attempt_02/` (coverage table/figure,
+metadata, eight dated acquisition manifests and output audit). The original
+run/diagnosis, frozen protocol, report, Phase A and seam evidence are unchanged.
+The pilot is stopped for owner review; no further acquisition or Phase C is
+authorized by this result.
 
 ## Approach and inputs
 

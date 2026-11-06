@@ -6,6 +6,79 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 
 ## [Unreleased — 0.3.2 recovery]
 
+
+### 2026-11-06 — seasonal Stage 1 implemented and verified offline
+
+- Accepted separate June–September protocol retained byte-for-byte, SHA-256
+  `948626ae2e8267177ab8ced5a18ac65f5cef23a019e2cc46fd0c461133a7c917`.
+  Implementation authorization is separate; acquisition remains unauthorized.
+- Added a pure quality/temporal-support module and separate coverage-only entry
+  point. Retained all 48 scenes, 288 assets, source-validation contracts, six
+  windows and numerical gates; year order is 2022, 2021, 2024, 2023, 2020, 2025.
+  All source headers precede pixels; no later-year scheduling before a pass.
+  Both first failure and six-year success stop without classification.
+- Added 57 synthetic/offline tests, including every clear-date combination for
+  each year's frozen dates, buffer/validity and temporal boundaries, no-classifier
+  calls/artifacts, partial acquisitions, cumulative accounting, cancellation,
+  exclusive outputs and fresh approval/verification gates. Full local suite:
+  **383 passed, zero failures/errors/skips**, Python 3.14.5, Windows 11,
+  6 November 2026 (80.05 s), with network connections blocked.
+- The documentation hold is counted once: 814,247,424 recorded bytes plus
+  67,108,864 assumed documentation bytes gives an effective 881,356,288-byte
+  carry-in before later charges. Prior time rounds up to 734 seconds, leaving
+  6,466. The historical 256 MiB allowance is not measured lifetime traffic.
+  Retained the 3 GiB accounting cap, 7 GiB disk gate and bounded request retries.
+- Added 72-row coverage output, per-date clear masks and exact UTC/spacecraft/
+  baseline provenance with mixed yearly summaries. Preserved synthetic success,
+  first/later-year failure, header-failure and partial-acquisition evidence under
+  `data/output/coastal_jun_sep_v1/implementation_20261106/`; no real seasonal
+  pixels or transitions were examined. No Stage 2 implementation or tide work.
+- Updated the sole methodology for the adopted staged design; all nine pages
+  visually reviewed. Bundled renderer lacked LibreOffice; read-only Word PDF
+  export and bundled Poppler supplied the fallback. Accepted report, original
+  pilot evidence/code, Phase A, seam and seasonal protocol bundle are unchanged.
+  No acquisition, signing, commit or push. Owner implementation review, separate
+  acquisition approval and a clean-commit execution verification remain required.
+- Implementation verification SHA-256:
+  `a903f7e4f74c75791c427171d68eb5198fb665c80d559f6daf9b4dbe8b96eb82`.
+  Full-suite JUnit SHA-256:
+  `3569b10ebc575bf3866136c8a856fb0e6f286780ac1d8d29e45197ab9c804601`.
+  Methodology SHA-256:
+  `cc457544d819dc45f3723d096dcb8c469b007fc5e0d011aac2e81fde2ae4875e`.
+
+
+### 2026-11-06 — coastal attempt 02 stopped at first temporal-support gate
+
+- Executed the separately approved restart once from clean local commit
+  `0ac4b05beb456bd2b1212a13b311ef7d02d4bc2f`, after 326 passing tests and fresh
+  verification. Initial free disk: 115,287,318,528 bytes. All 576 native headers
+  passed before pixels; 156 TIFF tags were absent and 420 explicitly zero,
+  each backed by the corresponding verified XML zero declaration.
+- Acquired eight fixed January–April 2020 dates (48 assets), then stopped at
+  `STOP_TEMPORAL_SUPPORT`. C1–C4 and W1 have 0/2,500 supported cells at both
+  buffers. L1 has 2/2,500 (0.08%) at 60 m and zero at 120 m. All 12 entries
+  fail the registered >=80% requirement. Three clear dates alone do not suffice:
+  three-month coverage and a 60-day span are also required and were inadequate.
+  This supports a bounded non-feasibility result for the fixed design, not a
+  conclusion of no physical change or universal optical-data infeasibility.
+- Retained 12 measured and 132 explicitly unacquired coverage rows. No later
+  season was acquired; no transition inference, replacement date/site, weaker
+  mask/threshold, further attempt, scale-up or Phase C. Coverage figure visually
+  reviewed; table/array denominators and support counts reconciled.
+- Attempt response bodies: 134,763,696 bytes; new reservations: 541,692,466;
+  cumulative reservations including prior debit: 814,247,424 bytes, below
+  3 GiB. No retries. Attempt elapsed: 673.75 seconds; including historical
+  time debit: 733.75 seconds, below two hours.
+- Local outputs: `data/output/coastal_transition_pilot_v1/run_attempt_02/`.
+  Results SHA-256:
+  `c728e75ee4e88fa47288a67ddeb8c5385b08a3dfa200cec7feab3345dd48d8b4`.
+  Output audit SHA-256:
+  `597220f2175bfff25b226ebab70e2f51c7a7d90fec813fc80a8e0a4cf3a96df4`.
+  Separate `restart_attempt_02/outcome_audit.json` verifies all 73 output files
+  and all 245 pre-existing pilot files. Protocol/preparation code, original
+  stopped run and diagnosis, final report, methodology, Phase A and seam are
+  unchanged. Post-run documentation is local; nothing was pushed.
+
 ### 2026-11-06 — approved restart safeguards, before execution
 
 - Owner approved the reviewed correction and restart plan. Separate immutable

@@ -17,6 +17,35 @@ from scripts.coastal_transport import Budget, Transport, GateError
 from tests.test_coastal_execution import response
 
 
+# Dates from the frozen seasonal selection; no imagery or local bundle needed.
+FROZEN_DATES = {
+    2020: [
+        '2020-06-13', '2020-06-28', '2020-07-08', '2020-07-28',
+        '2020-08-07', '2020-08-27', '2020-09-06', '2020-09-21',
+    ],
+    2021: [
+        '2021-06-08', '2021-06-18', '2021-07-03', '2021-07-28',
+        '2021-08-12', '2021-08-27', '2021-09-01', '2021-09-16',
+    ],
+    2022: [
+        '2022-06-03', '2022-06-28', '2022-07-08', '2022-07-28',
+        '2022-08-07', '2022-08-17', '2022-09-06', '2022-09-26',
+    ],
+    2023: [
+        '2023-06-03', '2023-06-28', '2023-07-03', '2023-07-23',
+        '2023-08-07', '2023-08-17', '2023-09-01', '2023-09-16',
+    ],
+    2024: [
+        '2024-06-07', '2024-06-17', '2024-07-12', '2024-07-27',
+        '2024-08-06', '2024-08-21', '2024-09-05', '2024-09-25',
+    ],
+    2025: [
+        '2025-06-12', '2025-06-22', '2025-07-12', '2025-07-24',
+        '2025-08-01', '2025-08-26', '2025-09-15', '2025-09-22',
+    ],
+}
+
+
 def dates(year=2022):
     return [f'{year}-{month:02}-{day:02}' for month in (6, 7, 8, 9) for day in (1, 20)]
 
@@ -145,9 +174,7 @@ def test_temporal_boundaries(ds, expected):
 
 def test_temporal_support_matches_frozen_synthetic_rules():
     # Every possible clear-date combination for all 48 frozen dates, metadata only.
-    acquisitions = json.loads((r.OUT/'acquisitions.json').read_bytes())
-    for year in range(2020, 2026):
-        ds = [a['date_utc'] for a in acquisitions['acquisitions'] if a['year'] == year]
+    for ds in FROZEN_DATES.values():
         clear = np.array([[(mask >> i) & 1 for mask in range(256)] for i in range(8)], bool)
         previous, _ = old_rules.season_state(ds, clear, np.full(clear.shape, -1, dtype=np.int8))
         np.testing.assert_array_equal(c.temporal_support(ds, clear)['support'], previous)
@@ -238,6 +265,9 @@ def test_real_bundle_offline_metadata_contracts():
     bundle = r.load_bundle(r.ROOT, r.OUT)
     assert len(bundle['contracts']) == 288
     assert len(bundle['scenes']) == 48
+    records = bundle['acquisitions']['acquisitions']
+    assert {year: [a['date_utc'] for a in records if a['year'] == year]
+            for year in range(2020, 2026)} == FROZEN_DATES
     assert {a['spacecraft'] for a in bundle['acquisitions']['acquisitions']} == {'Sentinel-2A', 'Sentinel-2B', 'Sentinel-2C'}
 
 

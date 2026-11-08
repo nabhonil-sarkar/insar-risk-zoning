@@ -6,6 +6,18 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 
 ## [Unreleased — 0.3.2 recovery]
 
+### 2026-11-08 — make temporal-support regression independent of local data
+
+- Fresh-clone CI for the repository publication exposed a second local-data
+  dependency: the exhaustive synthetic support-equivalence test read dates from
+  the excluded acquisition bundle. Stored those same 48 fixed dates in the test
+  so all 256 clear-mask combinations per year run without research data. The
+  optional real-bundle test also checks that these dates match the pinned records.
+- No scientific code, protocol or result changed. Targeted Stage 1 verification:
+  **57 passed**, no failures/skips, 7.58 seconds on local Windows/Python 3.14.5.
+  GitHub Actions verifies the complete suite in data-free Python 3.12/3.14 jobs.
+
+
 ### 2026-11-08 — repository update, accepted supplement and parked Phase C
 
 - Updated the public overview around completed results and limitations: annual

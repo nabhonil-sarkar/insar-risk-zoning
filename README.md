@@ -1,178 +1,178 @@
 # Satellite-observed surface differences around Jakarta
 
-A remote-sensing case study comparing **2020–2025 AlphaEarth embeddings**
-around Jakarta on one nominal 30 m grid. The current deliverable describes
-surface differences, not confirmed development, subsidence, exposure or risk.
-Our Sentinel-1 experiments remain a relative-pattern case study; published
-ground motion is screened but separate.
+A completed descriptive remote-sensing case study of **2020–2025 AlphaEarth
+embedding differences** around Jakarta, with follow-up diagnostics and documented
+observation limits. It asks **where and when satellite-derived surface descriptions
+differed most**. It does not identify confirmed development, land loss, reclamation,
+subsidence, exposure or risk from those differences alone.
 
-The question answered here is: where and when did the satellite-derived surface
-descriptions differ most? Physical interpretation and comparison with published
-subsidence remain future work; spatial overlap would not establish causation.
+Owner: Nabhonil Sarkar · Study rectangle: approximately 85 × 59 km.
+The repository retains its original `insar-risk-zoning` name and historical radar
+code; no project-produced absolute subsidence, hazard or risk map is validated.
 
-Owner: Nabhonil Sarkar. Repository:
-[nabhonil-sarkar/insar-risk-zoning](https://github.com/nabhonil-sarkar/insar-risk-zoning).
-Study area: approximately 85 × 59 km around Jakarta.
+## Read the results
 
-[Read the final illustrated case study (PDF)](docs/Nabhonil_Sarkar_Jakarta_Surface_Differences_2020-2025.pdf) ·
-[Technical methodology (Word)](docs/InSAR_Subsidence_Risk_Zoning_Methodology.docx).
+- [Final illustrated case study (PDF)](docs/Nabhonil_Sarkar_Jakarta_Surface_Differences_2020-2025.pdf)
+  — accepted 10-page Editorial v5, 5 November 2026.
+- [Phase B optical feasibility supplement (PDF)](docs/Nabhonil_Sarkar_Jakarta_Phase_B_Optical_Feasibility_Supplement.pdf)
+  · [editable supplement (Word)](docs/Nabhonil_Sarkar_Jakarta_Phase_B_Optical_Feasibility_Supplement.docx)
+  — accepted three-page supplement, corrected 8 November 2026. It records both
+  fixed optical designs and their coverage failures.
+- [Technical methodology (Word)](docs/InSAR_Subsidence_Risk_Zoning_Methodology.docx)
+  — methods and limitations; historical designs do not imply active work.
+- [Changelog and artifact checksums](CHANGELOG.md) — dated milestones,
+  verification environments, preserved failures and provenance.
 
-The current report is the accepted 10-page Editorial v5 (5 November 2026).
-The older `Nabhonil_Sarkar_Jakarta_Surface_Change_2020-2025` PDF and DOCX in
-`docs/` are superseded drafts, preserved for history; the DOCX is not the source
-of the final editorial PDF.
+The earlier `Nabhonil_Sarkar_Jakarta_Surface_Change_2020-2025` PDF and DOCX are
+superseded drafts, retained for history. That DOCX is **not** the editable source
+of the accepted Editorial v5 PDF. The main report and accepted supplement are
+preserved unchanged in this repository update.
 
-## Status
+## Results and current status
 
-As of 5 November 2026, **no project-produced deformation, hazard or risk map is
-validated**. The 2023 four-cluster AlphaEarth baseline is usable as surface
-context. The descending InSAR result supports a reference-stable relative LOS
-pattern over 68.39% of North Jakarta, but its zero level is uncertain and
-independent ground validation is missing.
+As of **8 November 2026**, the descriptive report and Phase A are complete,
+the Phase B optical branch is closed, and Phase C is parked after preparation.
+No new analysis is needed to regard the descriptive study as complete.
 
-Two descriptive findings need interpretation: the northwest of the study
-rectangle contains 32.2% of endpoint top-1% cells on 11.1% of valid cells,
-and 2022–2023 is the largest adjacent-year difference at 85.4% of valid cells.
-The northwest is mostly west of mainland Jakarta, not administrative North
-Jakarta. Its concentration persists on 2020 land and after western tile-strip
-exclusion. These checks do not identify a physical cause.
+### Annual differences and Phase A
 
-The owner has accepted a public-data route so progress no longer depends on
-unanswered validation emails. Two official AlphaEarth tiles intersect the
-frozen Jakarta grid per year (2020–2025); all 12 headers were verified.
-All **six full-area annual rasters and seven embedding-difference maps** have
-been generated locally; the GeoTIFFs are not distributed in Git. Each comparison
-has 5,619,719 joint in-ROI cells. Decoded GCS 2023
-matches the frozen baseline exactly throughout the ROI; the legacy export
-also retained 2,650 valid exterior cells. Differences are not labelled development.
-Reproducing 2023 verifies processing, not product consistency across years.
-The published Java source passed its file check. Screening leaves 48,883
-distinct mainland Jakarta locations for contextual analysis, not a continuous
-deformation layer. Across all 93 relevant Wayback releases, the frozen 300-patch
-benchmark has paired imagery candidates in only 16 development blocks (20
-required). A separate Pléiades footprint search suggests broader coverage,
-but the project lacks full-resolution review access. Neither model was scored.
-The benchmark is parked. The approved surface-type diagnostic now finds a
-broad 2022–2023 elevation across baseline classes and sectors, with varying
-magnitude. Its physical cause still needs independent dated observations. Before comparing
-published subsidence, define spatial units and minimum observation support.
-Verification: 383 tests passed locally with project data, none skipped, after
-Stage 1 seasonal coverage implementation on 6 November 2026 (80.05 s). Network
-connections were blocked during verification; this is not a count from a data-free checkout. GitHub Actions also runs automated
-checks; data-dependent tests may skip when local inputs are absent.
+- Six annual grids and seven difference maps use the same **5,619,719 valid
+  in-ROI centres**, all 64 embedding components and one frozen nominal 30 m grid.
+  GCS inputs use stored 20 m overviews. Decoded 2023 values reproduce the earlier
+  Earth Engine export exactly at every valid ROI centre; the legacy export's
+  2,650 exterior centres are excluded. This verifies processing equivalence,
+  not cross-year product consistency.
+- The northwest sector contains **32.2% of the 2020–2025 top-1% differences on
+  11.1% of valid cells**. Concentration persists on 2020 baseline land and after
+  western tile-strip exclusion (32.99% of re-ranked extremes). The primary
+  registered seam comparisons were not flagged; all water-only comparisons
+  were inconclusive. These checks do not establish a physical cause.
+- **2022–2023 is the largest adjacent-year difference at 85.4% of valid cells.**
+  The Phase A follow-up found larger medians across all nine observed baseline
+  classes and positive contrasts in all 64 supported class-sector groups against
+  each of the four other transitions. Magnitudes vary, and baseline classes do
+  not establish unchanged surfaces. The breadth is compatible with a shared
+  observation/product influence but does not prove one or exclude real change.
 
-See the [changelog](CHANGELOG.md) for milestones and artifact checksums.
+The study's northwest sector is not administrative North Jakarta: 96.8% of its
+valid cells lie outside mainland DKI. Embedding differences and any apparent
+reversal in the embedding pattern are not measurements of physical change.
 
-## Next phase (Phase A complete; seasonal coverage implementation verified)
+### Phase B: two bounded optical feasibility failures
 
-The next goal is to explain observable surface differences before attempting
-broader risk interpretation:
+Both designs used the same six 1 km windows, selected geometrically within NW
+using WorldCover 2020 rather than embedding scores. Eight dates per seasonal
+window were preselected, one per half-month using whole-scene cloud metadata.
+Every window required at least 80% of its cells to meet clear-date, month,
+60-day-span and spacing rules under both 60 m and 120 m quality buffers.
 
-The original two-season coastal pilot is closed. A separate June–September
-Stage 1 workflow is implemented and verified offline, with **no acquisition
-approval**. It retains the existing 48 dates, six windows and numerical gates,
-validates all 288 selected source headers before pixels, and uses the frozen
-order 2022 → 2021 → 2024 → 2023 → 2020 → 2025. Both coverage failure and complete
-success stop without classification; failure closes this optical branch under
-the current scope. Tide access does not block coverage. Stage 2 requires a later
-review, tide-method addendum and separate authorization.
+| Design | Period actually acquired | Result |
+|---|---|---|
+| Original two-season, 2020–2025 | January–April 2020: eight dates | All 12 window-buffer entries failed; coastal support 0%, best control 0.08% |
+| June–September follow-up, 2020–2025 | June–September 2022: eight dates, acquired first | C2 and C4 passed both buffers; the other four windows failed both, so eight of 12 entries failed |
 
-The new entry point is `scripts/run_coastal_coverage.py`; it requires separate
-exact-hash acquisition approval and fresh execution verification, including a
-clean executing commit. No production run directory or execution approval exists.
-Local protocol and implementation evidence: `data/output/coastal_jun_sep_v1/`.
-Historical pilot details below remain preserved. The accepted report is unchanged.
+The original initial attempt stopped before pixels at a combined header check;
+the absent TIFF nodata tag was diagnosed the following day. The tested XML-backed
+correction preserved geometry, masking and calibration. All 576 headers passed
+before the corrected original attempt; all 288 passed before the seasonal attempt.
 
-1. Completed the comparison of all five annual transitions by **2020 baseline
-   surface class** and geographic sector for owner review. Existing
-   WorldCover classes describe the baseline, not proven unchanged surfaces.
-2. Test a small **2020–2025 coastal land–water pilot** using repeated public
-   optical observations. First establish clear-image support, then assess
-   persistent transitions with explicit ambiguous areas and sensitivity checks.
-   Do not equate a transition with reclamation, erosion or subsidence.
-3. If the pilot supports interpretation, consider the screened published
-   subsidence data as context under predefined spatial-support rules. The
-   observation periods differ; overlap alone is not causation.
+After quality masking, observations were insufficiently spread through the tested
+seasons. The 60-day span was a major constraint, alongside clear-date and month
+requirements. Quality exclusions are not proof that every excluded pixel was cloud.
+Using all available scenes or longer seasons was not tested.
 
-Each stage needs a specified protocol, synthetic tests and a review before
-expansion. Insufficient observations lead to a documented stop, not weaker
-thresholds. The existing model-comparison benchmark stays parked; no new radar
-rerun or risk-map release is planned. The accepted report remains unchanged.
+**Neither design completed its six-year sequence or classified transitions.**
+Unacquired periods are unknown, not zero-support observations. Passing individual
+windows does not establish six-year feasibility. The failures apply to these
+windows, selected dates and rules—not optical monitoring in general. This branch
+is closed; no further optical rescue, tide analysis or classification is active.
 
-The approved Phase A diagnostic ran once on 5 November, using 5,619,719 jointly
-valid cells with no support loss. Across all nine observed baseline classes,
-2022–2023 has a larger median than each other annual transition. All 64 supported
-class-by-sector groups also have positive median cell-paired contrasts against
-each of the four alternatives (256/256 descriptive contrasts). Magnitudes vary;
-this breadth is compatible with a shared observation/product influence but does
-not prove one or establish physical change. Nine sparse and 26 empty class-sector
-groups remain explicit; all 681 mangrove-labelled cells occur in the N study
-sector. Baseline labels do not prove locations stayed unchanged.
+Cumulative reserved accounting ended at 1,252,483,412 bytes, including historical
+and documentation allowances. These are accounting assumptions, not verified
+lifetime traffic or proven upper bounds. The supplement and changelog distinguish
+received response bodies from reservations and record execution/audit dates.
 
-The complete local output is `data/output/alphaearth_surface_type_v1/run/`:
-support, transition and contrast tables, JSON provenance, a summary and two
-figures. Its approved runner requires a clean commit and verified input hashes,
-and refuses to overwrite the run. The owner subsequently authorized Phase B
-feasibility and protocol preparation; coastal attempt 02 has now stopped at its
-first seasonal support gate. Published-data overlay has not started. See the
-changelog for all class medians, limitations and artifact hashes.
+### Phase C: sampling diagnostics complete; contextual analysis parked
 
-The approved coastal pilot uses four 1 km coastal windows and two controls
-selected from 2020 WorldCover geometry, with 96 fixed Sentinel-2 dates across
-2020–2025. Public catalogue/XML/TIFF-header checks support a bounded acquisition:
-1.70 GiB of required compressed blocks, a 3 GiB transfer ceiling and 7 GiB disk
-reservation. The first season now fails clear-observation support. The Planetary Computer
-route requires verified per-product reflectance offsets and retains mixed
-processing baselines; it is not a uniformly reprocessed archive. The separate
-protocol fixes masking, temporal support, persistence, sensitivity and stopping
-rules. The owner approved the exact protocol and acquisition ceiling on 5 November.
-The execution runner verifies all sources before pixel requests, enforces the
-total byte/time budget and stops at a failed temporal-support gate. The adopted
-design is in the sole methodology; no scale-up or published overlay is authorized.
-Local protocol/approval/evidence: `data/output/coastal_transition_pilot_v1/`.
+The published Java source audit retains **220,625 eligible locations** in the
+rectangle, including 48,883 in mainland DKI, after withholding all 40,661
+conflicting coordinates. Point counts do not establish continuous area coverage.
+NW has 21,611 eligible locations, 20,278 outside mainland DKI; DKI-only administrative
+aggregation would omit much of this sector.
 
-The approved run from clean local commit `5dbdbb4` stopped at the actual
-GeoTIFF geometry/datatype/nodata check before any pixel blocks were requested.
-No dates were acquired and no transition classification ran. Clear-pixel
-feasibility remains untested; this is an input/execution stop, not a failed
-temporal-support result. Metadata-only diagnosis identified an absent TIFF
-nodata tag on the first scene's B03 asset; its pinned product XML explicitly
-declares NODATA=0 and all other native fields match. The corrected runner accepts
-absent or zero TIFF nodata only after verifying the exact asset/product XML
-association and a unique zero declaration. Conflicts and missing/ambiguous
-declarations fail before image-block requests; geometry/datatype checks remain
-exact. Failures now retain asset identity and named expected/actual fields.
-All 576 cached asset/XML associations pass, and the diagnosed header passes
-local replay. This does not establish compatibility of every native TIFF or
-clear-pixel feasibility. The original run and diagnosis remain immutable;
-the owner approved the correction and separate restart plan on 6 November.
-The new attempt requires fresh test verification and a clean local commit,
-preserves the original evidence, and carries prior traffic/time charges forward.
-The approved remaining allowance is 2,948,670,514 bytes and 7,140 seconds,
-with at least 7 GiB free disk and all frozen source/scientific gates unchanged.
-All 144 window/year-season/buffer coverage entries explicitly remain unacquired.
-No date/site substitution, threshold change, push or scale-up followed the stop.
+A geometry-only 1 km grid inventory and a prospectively specified sampling-overlap
+diagnostic are complete. Under the recommended full-unit screen (at least ten
+points, four occupied 250 m subregions and points in both halves of each axis),
+3,459 units qualify; 413 intersect NW and are not necessarily wholly inside it.
 
-The separately approved restart ran from clean local commit `0ac4b05` on
-6 November. All 576 native headers passed, including 156 absent and 420
-explicit-zero TIFF nodata tags backed by pinned XML. It acquired only the eight
-fixed January–April 2020 dates, then stopped at **STOP_TEMPORAL_SUPPORT**.
-All four coastal windows have 0% qualifying support at both 60 m and 120 m
-cloud/shadow buffers. Inland control L1 reaches only 2/2,500 cells (0.08%) at
-60 m and zero at 120 m; open-water control W1 is zero at both. Every entry
-fails the frozen 80% gate. Some cells have three clear dates, but the required
-three-month coverage and 60-day span are inadequate. This is insufficient
-temporal support under this fixed design, not evidence of absent surface change.
+| Sampling convention within those units | All valid NW cells included | NW endpoint extremes included |
+|---|---:|---:|
+| Union of 75 m squares around eligible points | 20.14% | 9.12% |
+| Union of 75 m diameter disks | 15.93% | 7.21% |
+| Occupied 250 m subregions | 56.77% | 29.26% |
 
-The restart preserves 12 measured coverage rows and 132 explicitly unacquired
-rows; no later seasons or transition classification followed. It received
-134,763,696 body bytes and charged 814,247,424 bytes including the accepted
-historical debit, below 3 GiB. Attempt time was 673.75 seconds. Local outputs:
-`data/output/coastal_transition_pilot_v1/run_attempt_02/` (coverage table/figure,
-metadata, eight dated acquisition manifests and output audit). The original
-run/diagnosis, frozen protocol, report, Phase A and seam evidence are unchanged.
-The pilot is stopped for owner review; no further acquisition or Phase C is
-authorized by this result.
+NW extremes use the original rectangle-wide ranking, not a separate NW ranking.
+The square and disk are operational conventions, not established measurement
+footprints; occupied subregions are not fully measured. The unequal overlap limits
+a comparison's ability to address the headline concentration, without explaining
+why observations are missing.
+
+A descriptive protocol and reporting matrices were prepared, but **Phase C is
+parked**. No motion values were aggregated or compared with embedding differences.
+The proposed 2020–2022 endpoint remains ungenerated. Preparation does not imply
+implementation, a validated relationship or a commitment to continue.
+
+### Other limits and retained work
+
+| Branch | What remains usable | Why the original goal is unmet |
+|---|---|---|
+| Own Sentinel-1 processing | Reference-stable descending relative LOS pattern over 68.39% of North Jakarta | Its zero level changes by 8.0453 mm/year across reference choices; ascending strict coverage is 0% of North; no compatible independent anchor |
+| Embeddings versus simpler predictors | Frozen benchmark and imagery-availability audits | Paired imagery candidates cover only 16 development blocks versus 20 required; no full-resolution Pléiades access; neither model was scored |
+| Surface classification | Existing four-cluster 2023 baseline as surface context | Further cross-year clustering and physical attribution are deferred |
+| Exposure and risk | Separate conceptual requirements | Suitable exposure analysis and validated hazard were not established |
+
+## Optional future work
+
+The project can close with its present report, supplement and sampling limitations.
+Alternatively, one short exploratory check could assess whether a rule-selected
+sample is interpretable from endpoint imagery. No attribution study, distant-area
+jump test, radar water mapping, Phase C execution or dashboard is currently active.
+An exploratory label would describe an observed surface difference, not its cause.
+
+New work uses proportionate checks: labelled exploration; a short prospective plan
+for reported analyses with prior exploration disclosed; and relevant tests,
+provenance and wording checks before publication. One review per milestone and a
+simple study-level resource/effort cap replace routine intermediate approval loops.
+Historical protocols, evidence and accounting remain intact. The public code
+includes frozen historical guards for reproducibility; these are not a universal
+workflow template for every future task.
+
+## Reproducibility and repository contents
+
+This repository contains code, tests, methodology and report artifacts. Source
+datasets, large rasters, cached metadata and local run/protocol bundles under
+`data/` are not distributed. A fresh clone supports the software tests but cannot
+reproduce the research outputs without those pinned inputs and bundles. Historical
+runners use write-once paths and fail on absent or changed inputs; do not remove
+checks or overwrite completed runs to make a command proceed.
+
+Key local evidence namespaces (not Git download links):
+
+| Evidence | Local namespace |
+|---|---|
+| Annual grids and difference maps | `data/output/alphaearth_annual_change/gcs_full_v1/` |
+| Registered seam test | `data/output/alphaearth_seam_v2/` |
+| Completed Phase A | `data/output/alphaearth_surface_type_v1/run/` |
+| Original coastal attempts | `data/output/coastal_transition_pilot_v1/` |
+| Seasonal coverage-only outcome | `data/output/coastal_jun_sep_v1/stage1_run/` |
+| Phase C geometry inventory | `data/output/phase_c_geometry_support_v1/` |
+| Sampling-overlap diagnostic | `data/output/phase_c_matched_support_v1/` |
+| Parked descriptive protocol | `data/output/phase_c_descriptive_v1/` |
+
+The published geometry/matched-support scripts preserve the completed diagnostics;
+they do not implement the parked motion-comparison protocol. The accepted main
+report is distributed as a PDF; this repository does not claim a self-contained
+rebuild of that editorial artifact.
 
 ## Approach and inputs
 
@@ -216,6 +216,11 @@ in the project environment. The installed `insar-risk-zoning` command is the
 legacy clustering/overlay pipeline, not the annual workflow below. Its `--synthetic` flag replaces only
 the InSAR input; it still requires local embeddings. The real v13 footprint
 regression runs only with its local audit bundle.
+Historical full-data verification on 6 November 2026: **383 passed, none skipped**
+(Windows, Python 3.14.5; network blocked). Data-dependent checks are explicitly
+skipped when their excluded local bundles are absent. See CHANGELOG for the
+publication validation and GitHub Actions for fresh-clone checks.
+
 Earth Engine export optionally requires `.[earth-engine]`, authentication
 and an approved Cloud project. The GCS route needs neither. With the locked
 environment, frozen 2023 reference and registered pilot evidence present:
@@ -249,8 +254,9 @@ without study data, use `python -m pytest tests/test_run_alphaearth_tile_seam.py
 Published-source helpers: `scripts.fetch_published_java`,
 `scripts.audit_published_java`, then `scripts.audit_published_java_dki`.
 
-Interpretation benchmark: run `scripts.urban_change_benchmark register` then
-`select` as Python modules before imagery inspection. The companion modules
+Historical benchmark tools: `scripts.urban_change_benchmark register` and
+`select` specify samples before imagery inspection. The benchmark is parked;
+these commands document the retained workflow rather than an active next step. The companion modules
 `scripts.audit_urban_reference`, `scripts.inventory_urban_baseline` and
 `scripts.check_urban_benchmark_support` audit availability without assigning
 labels. Frozen local outputs: `data/output/urban_benchmark_v1/`. The separate

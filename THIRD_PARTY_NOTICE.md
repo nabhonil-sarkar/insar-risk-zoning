@@ -18,9 +18,11 @@ required attribution, redistribution limits, and commercial-use conditions for:
 - GNSS/levelling validation sources;
 - [Published Java vertical and east–west motion](https://zenodo.org/records/15786357)
   (Ohenhen et al.; CC BY 4.0);
-- Sentinel-2 Level-2A catalogue metadata, Esri World Imagery Wayback, and the
-  Airbus Pléiades footprint catalogue. Catalogue access does not grant rights
-  to redistribute full-resolution imagery;
+- Copernicus Sentinel-2 Level-2A imagery, SCL quality layers and product metadata
+  accessed through Microsoft Planetary Computer for the bounded optical pilots;
+  the supplement reports derived coverage counts, not redistributed source imagery;
+- Esri World Imagery Wayback and the Airbus Pléiades footprint catalogue.
+  Catalogue access does not grant rights to redistribute full-resolution imagery;
 - every building, population, or exposure dataset added later.
 
 The release data manifest should record the source URL, access date, dataset

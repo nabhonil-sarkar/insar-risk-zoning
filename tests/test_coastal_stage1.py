@@ -230,6 +230,10 @@ def test_accounting_cap_deadline_cancellation_and_retry(tmp_path):
     assert session.request.call_count == 2
 
 
+@pytest.mark.skipif(
+    not (r.OUT / 'protocol.json').is_file(),
+    reason='Local seasonal evidence bundle is not distributed with the repository',
+)
 def test_real_bundle_offline_metadata_contracts():
     bundle = r.load_bundle(r.ROOT, r.OUT)
     assert len(bundle['contracts']) == 288

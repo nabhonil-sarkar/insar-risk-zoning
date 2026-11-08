@@ -6,6 +6,214 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 
 ## [Unreleased — 0.3.2 recovery]
 
+### 2026-11-08 — repository update, accepted supplement and parked Phase C
+
+- Updated the public overview around completed results and limitations: annual
+  processing equivalence, northwest concentration, broad Phase A elevation,
+  both optical support failures and unequal published-point sampling overlap.
+  Removed stale restart instructions from README; earlier milestone entries
+  below retain their historical authorization and publication state.
+- Included the accepted Phase B supplement PDF/DOCX unchanged, alongside the
+  completed geometry and matched-support diagnostic scripts. The main report
+  and sole methodology retain their accepted bytes. Superseded drafts remain
+  clearly labelled; no editable-source or self-contained-build claim is made
+  for Editorial v5.
+- Phase C's descriptive protocol is prepared but parked. No motion comparison,
+  new endpoint, attribution study or further optical acquisition accompanies
+  this update. Remaining work is optional; new studies use proportionate
+  exploration/confirmation/publication checks and prospective resource caps.
+  Historical protocols, ledgers and their accounting caveats are preserved.
+- Updated package description and Sentinel-2 third-party attribution. Private
+  guidance, source data, cached imagery and local evidence bundles stay excluded
+  from Git. Existing local implementation commits are retained without rewriting
+  their history.
+- Made the seasonal real-bundle test explicitly optional when its excluded local
+  protocol is absent, matching the existing data-free checkout policy. Present
+  bundles still undergo all original integrity checks; no runner/scientific
+  rule was changed.
+- Publication checks on 8 November: **383 passed, zero failures/skips**, local
+  Windows/Python 3.14.5, 44.63 seconds, with socket networking blocked. All
+  Python source parsed, README local link targets existed, and accepted report,
+  supplement and methodology hashes matched. Fresh-clone CI is recorded on
+  the published commit; its local-data skips are distinct from this full run.
+
+
+### 2026-11-08 — Phase C descriptive protocol prepared for review
+
+- Prepared the write-once local package `data/output/phase_c_descriptive_v1/`:
+  protocol, input provenance, output/comparison matrices and baseline-class
+  overlap matrix. Protocol SHA-256:
+  `90f296bd93d4bac1482713cab1d461ecf650f20fddb2df78ab1616630cfad532`.
+  This is preparation only, not implementation or execution authorization.
+- Fixed co-equal square75/disk75 conventions, occupied 125/250/500 m supports,
+  and all 12 eligibility/exclusion scenarios across three periods. The main
+  table is A_250_existing, 2020–2023, both shapes side by side; occupied250
+  has a fixed appendix section. All other specified combinations remain.
+- Owner resolved matching: common points across all conventions/periods using
+  geometry and validity, followed by scenario-specific count/spread rechecks.
+  Point-local regions precede occupied unions, avoiding circular filtering.
+  No universal intersection across eligibility/exclusion scenarios.
+- Owner replaced a stability gate with signed Q25/median/Q75 differences and
+  counts for every comparison. Exact computational equality alone permits
+  “numerically unchanged”; no practical-equivalence tolerance or automatic
+  meaningful/unstable label. Sample-exclusion effects remain distinct.
+- Specified exclusive unit-centre sectors, unequal within-unit weighting,
+  attrition/non-estimable reporting, future direct 2020–2022 derivation,
+  baseline-2020 sampling with saved original extreme membership, stop rules
+  and bounded implementation/verification requirements.
+- Verified 77 registered input byte hashes and document/matrix integrity only.
+  No motion-value analysis, raster pixel reads, new diagnostics, implementation,
+  tests, endpoint generation, acquisition, accepted-document edits, commit,
+  push or publication. Prior evidence and intentional edits remain intact.
+
+### 2026-11-08 — matched-support proposal and fixed sampling-overlap diagnostics
+
+- Owner accepted the corrected Phase B supplement. Its PDF/DOCX bytes remain
+  unchanged; publication remains unauthorized and the optical branch stays closed.
+- Froze `data/output/phase_c_matched_support_v1/diagnostic_specification.json`
+  before geometry/retention calculations and endpoint overlap. It specifies the
+  existing zero-origin EPSG:32748 1 km units, centre-based inclusion, same-unit
+  clipping, deduplicated union, nested 125/250/500 m subregions and fixed denominators.
+  Nominal 75 m square and diameter-75 m disk conventions are co-equal diagnostics;
+  source footprint and positional uncertainty do not justify a unique primary
+  geometry. Neither was selected or enlarged after seeing overlap.
+- Prespecified A (10 points, 25% subregion occupancy) and B (20 points, 50%),
+  both requiring points in both halves of each axis and full ROI units. A_250
+  was recommended before retention: 3,459 eligible, 724 sparse and 689 empty full
+  units; all 288 partial units excluded from proposed primary summaries but
+  retained in all-point diagnostics. Of 609 NW-intersecting units, 413 qualify,
+  87 are sparse, 60 empty and 49 partial. Sector-intersecting unit counts overlap
+  at boundaries and are not additive. All six rule/subgrid combinations retained.
+- Recovered the original endpoint definition exactly: 99th percentile with
+  linear interpolation, ties included, cutoff 0.3580920195579531; 56,198 extreme
+  cells among 5,619,719 valid centres. NW remains the subset of that rectangle-wide
+  set: 18,096 extreme / 624,512 valid centres, without local reranking.
+- A_250 fixed-unit overlap with NW extremes: square 1,650 (9.12%), disk 1,305
+  (7.21%), occupied 125/250/500 m regions 3,548 (19.61%), 5,294 (29.26%) and
+  7,341 (40.57%). Rectangle equivalents: 8,421 (14.98%), 6,639 (11.81%),
+  18,345 (32.64%), 26,841 (47.76%) and 34,784 (61.90%). Complete tables retain
+  counts and percentages for valid and extreme cells, all-point and A/B filters.
+  High overlap would mean co-location within a sampling region, not a measurement
+  at every centre; low overlap limits coverage of the headline concentration.
+  Neither identifies why observations are missing.
+- Proposed future summaries remain strictly descriptive: unique-union embedding
+  median and equal-point vertical-motion median within units, then equal unit
+  weights; acknowledge different within-unit weighting and nonrepresentative
+  sampling. Additional duplicate sensitivity would exclude units containing an
+  existing withheld conflicting coordinate, with no new proximity radius or
+  reinstatement. No motion statistic was calculated.
+- Existing 2020–2023/2020–2025 endpoints and frozen annual-input hashes verified.
+  Proposed periods: primary 2020–2023 versus motion 2017–2023; 2020–2022 endpoint
+  sensitivity (absent, local derivation specified only); secondary 2020–2025.
+  Period mismatch and unresolved 2022–2023 elevation remain. Agreement would
+  show endpoint robustness, not prove the jump contributes nothing.
+- Independent checks reconciled 5,160 units, six eligibility combinations and
+  all 30 overlap rows; 510 deterministic centre checks agreed with brute-force
+  geometry. Synthetic checks covered radius boundaries, duplicates and unit-edge
+  clipping. All registered input/specification hashes remain unchanged. No full
+  test-suite rerun, new map/raster, motion aggregation, association, acquisition,
+  commit, push or publication. Proposal and diagnostics stop for owner review.
+
+### 2026-11-08 — supplement corrections and Phase C geometry inventory ready for review
+
+- Completed the two authorized supplement wording changes after checking the
+  frozen original protocol: all six windows were geometrically selected within
+  NW using WorldCover 2020, without embedding differences; the 5 November
+  combined-header stop is distinguished from the 6 November nodata diagnosis.
+  Exactly two paragraphs changed; tables and other content are unchanged.
+  All three pages were rendered and visually reviewed. Superseded PDF, DOCX,
+  builder and verification are preserved under
+  `data/output/phase_b_optical_supplement_v1/superseded_20261107_v1/`;
+  current verification and revision provenance are in the parent namespace.
+- Geometry-only inventory ran on 7 November into the exclusive
+  `data/output/phase_c_geometry_support_v1/` namespace; completion records updated
+  on 8 November. Twelve registered input hashes passed. Coordinate-only loading
+  reproduced 312,374 ROI source rows, 261,286 distinct coordinates and 220,625
+  eligible locations, retaining exclusion of all 40,661 conflicting locations.
+  Existing audit certifies zero identical duplicate rows and zero additional
+  rate/SD exclusions; no deformation columns were loaded for this inventory.
+- Reproduced 48,883 mainland-DKI locations (10,051 North). NW has 21,611 eligible
+  locations, including 1,333 mainland-DKI and 20,278 outside. The available 267
+  kelurahan polygons cover DKI municipalities and Kepulauan Seribu, not the
+  whole study rectangle. Local redistribution terms remain unresolved.
+- Zero-origin EPSG:32748 1 km candidate grid: 4,872 full and 288 partial ROI
+  cells; 4,323 occupied and 837 empty. NW: 517 occupied / 609 intersecting cells,
+  92 empty, 44 with 1–4 points and 36 with 5–9. Sector-intersecting grid counts
+  are not additive across sectors. Display bins are not acceptance thresholds.
+  Point spans and 250 m subcell occupancy describe geometry, not measured area.
+- Existing all-ROI embedding support reconciled at 5,619,719 centres without
+  reading raster pixels; 841,375 centres lie in candidate cells with no eligible
+  published point. Whole-cell summaries therefore need explicit spatial-support
+  matching. No extra candidate grid scales, motion aggregation, association,
+  optical-based unit selection or new protocol choices were evaluated/adopted.
+- Independent saved-output reconciliation passed, and the geometry-only PNG
+  and PDF were visually inspected. A layout-only revision moved legends outside
+  map panels while preserving the initial figure. Main report, methodology and
+  19 prior protected inputs remain unchanged. No acquisition, test-suite rerun,
+  commit, push or publication; all changes remain local for owner review.
+
+### 2026-11-07 — Phase B scientific supplement prepared for owner review
+
+- Prepared a standalone three-page optical-feasibility results supplement in
+  PDF and editable Word format; links are in README. It distinguishes the
+  original technical stop from both temporal-support failures, reproduces all
+  24 measured coverage entries and identifies 192 unacquired entries, including
+  the seasonal C2/C4 passes and the bounded scientific conclusion.
+- Checked reported values against saved protocols, results, coverage and
+  existing audits; rendered with Word and Poppler and visually inspected every
+  page. No acquisition, pixel processing, new scientific analysis or test rerun.
+  Local document verification: `data/output/phase_b_optical_supplement_v1/verification.json`.
+- Accepted report, sole methodology and all 19 referenced/protected input files
+  retain their hashes. Existing outcome edits were preserved. Supplement and
+  record updates remain local and uncommitted, pending owner review.
+
+
+### 2026-11-07 — seasonal Stage 1 outcome audited and optical branch closed
+
+- The one separately approved coverage-only run executed on 6 November from
+  clean local commit `b40b916dce012d2b3920afb801f307ad4f967b14`. The reviewed
+  implementation and 383-test evidence were unchanged; no redundant test rerun.
+  Committed only the six reviewed implementation/test/methodology/README/
+  CHANGELOG files. Private guidance and local evidence remained excluded;
+  no push. Protocol bytes and its preparation status remained unchanged;
+  acquisition authority was recorded separately.
+- All 288 selected native source headers passed before pixels. Completed the
+  eight June–September 2022 dates, then stopped at `STOP_TEMPORAL_SUPPORT`.
+  Support fractions at 60 m / 120 m: C1 0.00% / 0.00%; C2 93.12% / 90.24%;
+  C3 58.72% / 57.84%; C4 95.76% / 94.76%; L1 51.08% / 33.28%;
+  W1 21.88% / 21.88%. Eight of 12 rows fail the fixed 80% gate.
+  No later-year pixels: eight complete, zero partial and 40 unacquired dates;
+  12 measured and 60 explicitly unacquired coverage rows.
+- Audit verified all 75 run files, CSV/JSON agreement and saved clear-mask
+  temporal metrics, exact acquisition provenance, and all headers preceding
+  pixels. Only the coverage figure was visually reviewed. No water indices,
+  labels, persistence/transition classification or interpretive imagery review.
+  All 345 protected prior evidence/report files, reviewed code/methodology and
+  the seasonal protocol/preparation bundle retain their hashes.
+- Received 152,942,030 response-body bytes. Attempt reservations: 371,127,124;
+  cumulative accounting: 1,252,483,412 bytes = 814,247,424 historical debit +
+  67,108,864 documentation hold once + attempt reservations. Zero retries.
+  Attempt elapsed 221.64 seconds; cumulative charged elapsed 955.64 seconds
+  including 734 prior seconds. Initial free disk 114,239,442,944 bytes. All
+  limits passed. Historical/documentation allowances remain assumptions;
+  no exact lifetime-traffic claim or refunds.
+- Coverage failure closes this optical branch under current scope. No scene
+  replacement, gate relaxation, restart, third rescue, tide work, Stage 2,
+  scale-up or Phase C. This failure is bounded to the tested designs, selected
+  windows/dates and support requirements, not universal coastal optical
+  infeasibility or no-change evidence. Post-run record edits are uncommitted.
+- Local result: `data/output/coastal_jun_sep_v1/stage1_run/results.json`, SHA-256
+  `ea4bdac99711d4a26c5ebdb45ffef900dd3f20b8e30cbaaa4a2d006716d9ba97`.
+  Run output audit SHA-256:
+  `d2298e6a60c3b23a469796189d4c30ea80cdddd04fbf1330e7dcb83084472a84`.
+  Separate `stage1_outcome_audit.json` SHA-256:
+  `00ff4b2c79da2791c9077afe6fa00014d971ef3b43ca19ca4c05cc3201ceb704`.
+  Acquisition approval SHA-256:
+  `df6edb7476e43b4a67ccca6c6e25f472b58be5de7b60ce170bd9a8f510026eee`.
+  Execution verification SHA-256:
+  `e2aa11df878e38f71e0b528e816f8ca4e5f253ab9d4937cef159ba3341b95632`.
+
+
 
 ### 2026-11-06 — seasonal Stage 1 implemented and verified offline
 
@@ -781,6 +989,36 @@ These are audit rules for completed/deferred branches, not permission to resume.
   through cell 4 only; explicit approval before cell-5 download.
 
 ## Artifact checksums
+
+### Phase B supplement prepared 7 November 2026
+
+| Artifact | SHA-256 |
+|---|---|
+| Superseded Phase B supplement PDF (archived) | `1aac014ed96c4802a458fa513c9fde539063a7feb73082fb82b9f7ed610223eb` |
+| Superseded Phase B supplement editable DOCX (archived) | `60465c1b59dcc4e4a38d58c3f77fc8c335001c7a071d9302cbec5c14463731d8` |
+| Revised Phase B supplement PDF (two authorized wording changes) | `a2a3b489879fa9809a3ce1316131c93e0983da9aa5b438ce6dc2984a927b136b` |
+| Revised Phase B supplement editable DOCX | `3d40747ab89a8f2b668fd674a228f9aa45444599bec12a8d90eec9cc35adcc9d` |
+
+### Phase C geometry inventory prepared 7 November 2026
+
+| Artifact | SHA-256 |
+|---|---|
+| Geometry inventory results | `203833933cd8aaa64255634eefce5c6465fc2b3c4886e123dd0d563765e3e77c` |
+| Compact support table | `3994afad528a708871850d42733d8928845846183a9769859bb49bdd403f8fe8` |
+| Reviewed geometry-only map PNG | `6db521610c44565ba88f51ebcb0fcc67323212dcdb83a4de16a526b443497185` |
+| Inventory verification (includes all output hashes) | `fcfb08ed1895ea12ec6f79addd2dfd8488e1bd2941f39d98becee3ede3ac57ba` |
+
+### Phase C matched support diagnostic 8 November 2026
+
+| Artifact | SHA-256 |
+|---|---|
+| Frozen diagnostic specification | `fcc88c928874d070623570e355f6eba95f5d04dcd0712d0cd215c0ecf7c3a634` |
+| Diagnostic results | `8ab67b5e8fd229d6f45635f7e75e426e4a94f60cc5e12f35ecfac06437132bee` |
+| Sampling-overlap table | `2182edb54ee930785a15ecd5732fd255890598c134b6316fe82bb05876299317` |
+| Eligibility by sector and full/partial units | `1d165ff53657424209648892b247edd904bcc349efab5ee2cd7d686bf39f399f` |
+| Independent verification | `39b96239114f050e1b1435f3b96630dea0f5b30344c829a671db339bfa32ae35` |
+
+### Historical registry
 
 Preserved verbatim from the pre-consolidation registry; these identify
 historical artifacts, not fresh integrity checks. Verify before reuse. Grouped

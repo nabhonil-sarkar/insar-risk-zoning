@@ -12,8 +12,10 @@ code; no project-produced absolute subsidence, hazard or risk map is validated.
 
 ## Read the results
 
-- [Final illustrated case study (PDF)](docs/Nabhonil_Sarkar_Jakarta_Surface_Differences_2020-2025.pdf)
-  — accepted 10-page Editorial v5, 5 November 2026.
+- [Final report (PDF)](docs/Nabhonil_Sarkar_Jakarta_Surface_Differences_2020-2025.pdf)
+  — accepted 13-page report, 10 November 2026. Written for readers new to
+  remote sensing, it explains the question, approach, two main findings and
+  limits, with annual maps, a summary chart and supporting observation notes.
 - [Phase B optical feasibility supplement (PDF)](docs/Nabhonil_Sarkar_Jakarta_Phase_B_Optical_Feasibility_Supplement.pdf)
   · [editable supplement (Word)](docs/Nabhonil_Sarkar_Jakarta_Phase_B_Optical_Feasibility_Supplement.docx)
   — accepted three-page supplement, corrected 8 November 2026. It records both
@@ -23,14 +25,16 @@ code; no project-produced absolute subsidence, hazard or risk map is validated.
 - [Changelog and artifact checksums](CHANGELOG.md) — dated milestones,
   verification environments, preserved failures and provenance.
 
-The earlier `Nabhonil_Sarkar_Jakarta_Surface_Change_2020-2025` PDF and DOCX are
-superseded drafts, retained for history. That DOCX is **not** the editable source
-of the accepted Editorial v5 PDF. The main report and accepted supplement are
-preserved unchanged in this repository update.
+The final PDF replaces the earlier
+[10-page Editorial v5](docs/archive/Nabhonil_Sarkar_Jakarta_Surface_Differences_2020-2025_Editorial_v5.pdf),
+which is preserved unchanged for history. The earlier
+`Nabhonil_Sarkar_Jakarta_Surface_Change_2020-2025` PDF and DOCX are also
+superseded drafts. No published DOCX is the editable source of the final report.
+The accepted optical supplement and technical methodology remain unchanged.
 
 ## Results and current status
 
-As of **8 November 2026**, the descriptive report and Phase A are complete,
+As of **10 November 2026**, the final report is accepted and Phase A is complete,
 the Phase B optical branch is closed, and Phase C is parked after preparation.
 No new analysis is needed to regard the descriptive study as complete.
 

@@ -6,6 +6,31 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 
 ## [Unreleased — 0.3.2 recovery]
 
+### 2026-11-10 — accepted final report and publication cleanup
+
+- Accepted the owner's final 13-page report, *Satellite-observed surface
+  differences around Jakarta, 2020–2025*, and copied its exact PDF bytes to
+  `docs/Nabhonil_Sarkar_Jakarta_Surface_Differences_2020-2025.pdf`. It replaces
+  Editorial v5 as the main report, with a general-reader introduction, annual
+  maps, a median-difference chart, surface-class contrasts and completed
+  observation-limit findings. No new scientific analysis accompanies it.
+- Preserved the former Editorial v5 unchanged under `docs/archive/` and linked
+  it from README. Earlier published Surface_Change drafts remain historical;
+  none is represented as the editable source of the final PDF. Superseded local
+  Word drafts and the earlier redesign PDF are retained in the excluded local
+  report archive rather than published as competing final versions.
+- Updated README's report description and acceptance date. The optical
+  supplement, methodology, scientific code, protocols and evidence are unchanged;
+  the optical branch stays closed and Phase C stays parked. Private guidance
+  and local research data remain excluded from Git.
+- Publication verification: all 13 rendered pages visually inspected; final
+  PDF matches the owner-supplied file byte for byte; table text extracts as
+  ordinary digits, without the earlier private-use glyph mapping issue.
+  Report values were checked against the existing verified summaries, document
+  links and preserved-artifact hashes were checked, and the Git diff was reviewed.
+  No scientific jobs or unrelated local tests were rerun for this document-only
+  update. GitHub Actions provides the fresh-checkout checks on the commit.
+
 ### 2026-11-08 — make temporal-support regression independent of local data
 
 - Fresh-clone CI for the repository publication exposed a second local-data
@@ -1001,6 +1026,14 @@ These are audit rules for completed/deferred branches, not permission to resume.
   through cell 4 only; explicit approval before cell-5 download.
 
 ## Artifact checksums
+
+### Final report accepted 10 November 2026
+
+| Artifact | SHA-256 |
+|---|---|
+| Final 13-page report PDF | `d38e2c06d914bf998b315e0f4822427fdbbad50827197f840cdcdb04ebc10341` |
+
+The archived Editorial v5 retains the hash recorded in its 5 November entry.
 
 ### Phase B supplement prepared 7 November 2026
 

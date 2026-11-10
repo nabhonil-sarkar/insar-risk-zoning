@@ -261,7 +261,18 @@ def test_accounting_cap_deadline_cancellation_and_retry(tmp_path):
     not (r.OUT / 'protocol.json').is_file(),
     reason='Local seasonal evidence bundle is not distributed with the repository',
 )
-def test_real_bundle_offline_metadata_contracts():
+def test_real_bundle_offline_metadata_contracts(monkeypatch):
+    # This frozen bundle predates the accepted 10 November report replacement.
+    # Verify its exact historical report bytes in the preserved archive. Keep
+    # the production runner's original-path integrity gate unchanged.
+    report = r.ROOT / 'docs/Nabhonil_Sarkar_Jakarta_Surface_Differences_2020-2025.pdf'
+    archived = r.ROOT / 'docs/archive/Nabhonil_Sarkar_Jakarta_Surface_Differences_2020-2025_Editorial_v5.pdf'
+    original_hash_gate = r._hash_gate
+
+    def historical_hash_gate(path, expected):
+        original_hash_gate(archived if Path(path) == report else path, expected)
+
+    monkeypatch.setattr(r, '_hash_gate', historical_hash_gate)
     bundle = r.load_bundle(r.ROOT, r.OUT)
     assert len(bundle['contracts']) == 288
     assert len(bundle['scenes']) == 48

@@ -34,9 +34,10 @@ The accepted optical supplement and technical methodology remain unchanged.
 
 ## Results and current status
 
-As of **10 November 2026**, the final report is accepted and Phase A is complete,
+As of **11 November 2026**, the final report is accepted and Phase A is complete,
 the Phase B optical branch is closed, and Phase C is parked after preparation.
-No new analysis is needed to regard the descriptive study as complete.
+The subsequent building-reference and paired-image feasibility attempts are also
+closed. No new analysis is needed to regard the descriptive study as complete.
 
 ### Annual differences and Phase A
 
@@ -126,6 +127,39 @@ parked**. No motion values were aggregated or compared with embedding difference
 The proposed 2020–2022 endpoint remains ungenerated. Preparation does not imply
 implementation, a validated relationship or a commitment to continue.
 
+### Subsequent exploratory feasibility checks
+
+The building-reference pilot acquired Open Buildings Temporal V1 for 2020–2023
+in the northwest and west sectors. Its original endpoint rule yielded 4,712 and
+5,339 candidate cells, but five of six inspected candidate labels remained unclear
+under drift/edge diagnostics. It stopped before enrichment. These are unvalidated
+reference candidates, not confirmed building additions.
+
+One 8 m baseline-tolerance revision was then assessed at 30 fresh development
+sites in 30 distinct 1 km blocks. It retained 10/10 original candidates at the
+primary presence threshold and 8/10 at the recorded sensitivity threshold.
+Residual-growth alarms occurred on 1/10 reference-stable built controls and 0/10
+nonbuilt controls. Independent credibility and physical false-addition rates
+could not be established; internal consistency is not independent accuracy.
+Automatic cell labelling was discontinued under this pilot. A separate six-site
+Google Earth check found five viewable pairs at selected timeline dates, but
+acquisition-date ranges and alignment did not establish manual-label feasibility.
+
+The final Sentinel-2 paired-image gate required 40 fixed development sites:
+ten each of extreme/control baseline land/water, five per sector in each group.
+Extremes used the original **2020–2023 rectangle-wide top 1%**, and controls
+were non-extreme cells, not presumed unchanged. The northwest extreme-water
+population has **zero cells in the fixed development allocation**, before buffers
+or prior-site exclusions. Its five-site quota was impossible. The attempt stopped
+**inconclusive at sampling**; the 40-site sample was not formed, and no scene
+inventory, imagery acquisition or interpretability assessment began.
+
+Consequently, all four interpretability counts are **unassessed**, not 0/10 image
+failures. This allocation failure applies to the fixed design, not all free imagery.
+Interpretability itself would not validate physical-change detection or identify
+the cause of embedding differences. No change labels, enrichment or classifiers
+were produced, and no later ground-truth investigation or website work has begun.
+
 ### Other limits and retained work
 
 | Branch | What remains usable | Why the original goal is unmet |
@@ -137,11 +171,12 @@ implementation, a validated relationship or a commitment to continue.
 
 ## Optional future work
 
-The project can close with its present report, supplement and sampling limitations.
-Alternatively, one short exploratory check could assess whether a rule-selected
-sample is interpretable from endpoint imagery. No attribution study, distant-area
-jump test, radar water mapping, Phase C execution or dashboard is currently active.
-An exploratory label would describe an observed surface difference, not its cause.
+The project can close with its present report, supplement and documented
+feasibility limits. Further ground-truth investigation, a visual-labelling study
+or an interactive website would be separate later decisions. No attribution
+study, distant-area jump test, radar water mapping, Phase C execution or dashboard
+is active. An exploratory label would describe an observed surface difference,
+not its cause.
 
 New work uses proportionate checks: labelled exploration; a short prospective plan
 for reported analyses with prior exploration disclosed; and relevant tests,
@@ -172,11 +207,22 @@ Key local evidence namespaces (not Git download links):
 | Phase C geometry inventory | `data/output/phase_c_geometry_support_v1/` |
 | Sampling-overlap diagnostic | `data/output/phase_c_matched_support_v1/` |
 | Parked descriptive protocol | `data/output/phase_c_descriptive_v1/` |
+| Building-reference pilot | `data/output/building_change_explore_v1/` |
+| 8 m tolerance revision | `data/output/building_change_explore_v1/v2/` |
+| Final paired-image sampling stop | `data/output/building_change_explore_v1/s2_pair_gate/` |
 
 The published geometry/matched-support scripts preserve the completed diagnostics;
 they do not implement the parked motion-comparison protocol. The accepted main
 report is distributed as a PDF; this repository does not claim a self-contained
 rebuild of that editorial artifact.
+
+Exploratory helpers are in `scripts/building_change_explore/`, with data-free
+denominator, geometry and selection-rule tests. These preserve bounded historical
+workflows, not a self-contained rerun or permission to restart closed studies.
+Preparation requires the pinned local WorldCover raster via `--worldcover` and
+the excluded research bundles. Network helpers additionally require optional
+Earth Engine access. The final paired-image remote screening/acquisition code is
+unexecuted preparation; its local rule tests do not validate remote execution.
 
 ## Approach and inputs
 

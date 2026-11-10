@@ -6,6 +6,103 @@ execution instructions. Artifact hashes are recorded once in the registry below.
 
 ## [Unreleased — 0.3.2 recovery]
 
+### 2026-11-11 — final paired-image gate stopped at fixed sampling allocation
+
+- Attempted one separate Sentinel-2 interpretability gate with a fixed requirement
+  of 40 development sites: ten each of extreme/control baseline land/water,
+  five per sector. Original 2020–2023 rectangle-wide top-1% membership was checked
+  against its pinned raster and recorded membership hash. Northwest extreme-water
+  has 5,375 cells in 51 blocks overall but zero in the established development
+  allocation, even before buffering or previous-site exclusions. The required
+  five sites cannot be selected without changing the approved allocation.
+- Recorded **stop inconclusive at sampling**. No complete 40-site sample, scene
+  inventory, image acquisition, interpretability review or physical-change labels
+  were produced. All four interpretability counts remain unassessed, not failed
+  imagery counts. This result concerns the fixed design, not universal optical
+  infeasibility. The closed coastal studies, Day 1, v2 and accepted documents
+  remain unchanged. No replacement sites, new split or relaxed criteria were used.
+- Preserved pre-acquisition footprint/date/quality rules and the failure record
+  locally under `data/output/building_change_explore_v1/s2_pair_gate/`. Added a
+  fail-closed allocation preflight after the initial selection exception; did not
+  rerun selection or acquire imagery. Published preparation code distinguishes
+  local tested rules from unexecuted Earth Engine screening/acquisition.
+- New measured payload is zero; cumulative measured downloads remain 55,328,464
+  bytes. A 20,000,000-byte allowance for unmetered documentation/publication metadata brings
+  cumulative charged downloads to 345,328,464 / 1,000,000,000 bytes. Allowances
+  are estimates, not exact traffic or proven bounds. The recorded 178.54-minute
+  setup-to-stop wall interval includes an interruption without separate active
+  timing; it is charged conservatively, but compliance with the two-active-hour
+  limit cannot be verified. Publication checks do not extend scientific scope.
+- Publication verification: the initial full local suite passed 399 tests and
+  exposed one historical report-path mismatch after the accepted report was
+  replaced on 10 November. The optional real-bundle test now verifies its pinned
+  report in the unchanged Editorial v5 archive; production integrity gates and
+  frozen bundles are unchanged. All 74 affected/exploration tests then passed
+  (Windows, Python 3.14.5, 34.44 seconds). Compilation, public-document local links,
+  prior-evidence and accepted-artifact preservation were checked. Fresh-clone
+  GitHub Actions supplies the publication CI result.
+
+### 2026-11-10 — building-label tolerance revision stopped inconclusive
+
+- Completed one exploratory 8 m baseline expansion at the frozen cell size,
+  thresholding native presence before geometry and retaining cross-cell baseline
+  and missing-support handling. Candidate footprint growth requires >=10% of
+  known comparison area beyond the baseline tolerance, alongside the original
+  low/high endpoint and support rules. The tolerance can suppress genuine nearby
+  growth and is not a validated alignment correction.
+- A predeclared screen used 30 fresh buffered development sites in 30 distinct
+  one-kilometre blocks, across northwest/west addition candidates and stable built
+  and nonbuilt controls. Primary/sensitivity labels retained 10/10 and 8/10
+  original candidates; overall label agreement was 28/30. Residual-growth alarms
+  occurred on 1/10 reference-stable built and 0/10 nonbuilt controls. No sites
+  supplied independent dated physical verification, so credible retention and
+  verified false-addition rates remain undefined. Recorded **stop inconclusive**
+  and discontinued this automatic cell-labelling approach under the pilot.
+- A separate six-location historical Google Earth feasibility check found five
+  viewable pairs at selected 2020/2023 timeline dates, four potentially
+  interpretable. One location lacked a 2023 view; vegetation limited another.
+  Displayed open-ended acquisition ranges did not establish both requested years,
+  and precise spatial alignment remained unverified. A manual-label study was
+  therefore not established as feasible; no manual label set was produced.
+- Six focused geometry tests passed. All 5,569 preserved Day 1 files and accepted
+  artifacts passed hash checks; native-to-aggregate coverage differed by at most
+  4.54e-8. Thirty-six small binary/support patches totalled 486,717 new payload
+  bytes. Cumulative measured payload: 55,328,464 bytes; charged downloads:
+  325,328,464 / 1,000,000,000 bytes, including estimated unmetered-traffic
+  allowances. Evidence remains local under the existing exploration's `v2/`
+  folder. No enrichment, classifier, coarsening or alternative-radius search
+  accompanied this milestone; the Day 1 stop and completed report are unchanged.
+
+### 2026-11-10 — building-reference pilot stopped at the quality screen
+
+- Completed a local exploratory Open Buildings Temporal V1 feasibility screen
+  for the deliberately selected northwest and west sectors, 2020–2023. Native
+  presence was thresholded before overlap-weighted aggregation onto the frozen
+  embedding grid. All four years were acquired; missing support excluded no
+  pilot cells. Presence thresholds were 0.41 and 0.34, with low/high coverage
+  boundaries of 0.10/0.40 and minimum valid support of 0.95.
+- Endpoint rules produced 4,712 NW and 5,339 W candidate low-to-high cells across
+  349 and 491 one-kilometre blocks. These are unvalidated candidate labels, not
+  accepted building additions. Review of 24 deterministically selected buffered
+  development locations found relative spatial drift and edge sensitivity.
+  Five of six inspected addition-cell labels remained unclear; the recorded
+  80% clear-label quality screen failed. Diagnostic alignment was not applied
+  to the study arrays and does not establish that physical additions are false.
+- Recorded **stop inconclusive before enrichment**. No addition/extreme overlap
+  result, classifier, causal attribution or later-stage analysis was produced.
+  This bounded screen does not establish universal reference-product failure
+  or alter the completed descriptive study. Reusable exploratory scripts and
+  five focused tests were added; evidence and settings remain excluded locally
+  under `data/output/building_change_explore_v1/`.
+- Verification: five focused tests passed on Windows/Python 3.14.5; complete
+  grids, frozen rankings, land/water accounting, buffered development membership
+  and input/accepted-artifact hashes checked. Twelve failed large batch attempts
+  and interrupted smaller attempts are retained; the final small-window grids
+  are complete with no running exports. Measured downloads: 54,841,747 bytes;
+  charged total including 110,000,000 bytes of explicit unmetered-traffic
+  allowances: 164,841,747 of the 1,000,000,000-byte cap. Allowances are accounting
+  estimates, not an exact measurement or proven bound on total network traffic.
+
 ### 2026-11-10 — accepted final report and publication cleanup
 
 - Accepted the owner's final 13-page report, *Satellite-observed surface
